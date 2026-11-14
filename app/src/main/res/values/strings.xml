@@ -1,0 +1,14 @@
+<resources>
+  <string name="app_name">MetaLima Ai</string>
+  <string name="error_start_session_first">Inicia una sesión para abrir la cámara.</string>
+  <string name="error_camera_permission_denied">Permiso de cámara denegado.</string>
+  <string name="error_photo_capture_failed">No se pudo hacer la foto. Inténtalo de nuevo.</string>
+  <string name="error_recording_too_short">Grabación demasiado corta. Mantén la cámara activa y vuelve a intentarlo.</string>
+  <string name="error_recording_save_failed">No se pudo guardar la grabación.</string>
+  <string name="error_device_update_required">Actualiza %1$s para usar la cámara.</string>
+  <string name="error_permissions_required">Permite el acceso a dispositivos cercanos para conectar las gafas.</string>
+  <string name="notification_channel_name">Cámara de las gafas</string>
+  <string name="notification_channel_description">Sesión de cámara activa</string>
+  <string name="notification_title">Cámara de MetaLima Ai activa</string>
+  <string name="notification_body">La cámara de tus gafas está en uso.</string>
+</resources>
