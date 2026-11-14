@@ -1,4 +1,4 @@
-# MetaLima Ai · 0.3.0
+# MetaLima Ai · 0.4.0
 
 MetaLima Ai es una aplicación para Android que reúne conversación por IA, traducción, notas, grabación y emisión en directo en un mismo lugar. Puede utilizar la cámara de unas Ray-Ban Meta compatibles con Meta Wearables Device Access Toolkit (DAT) o trabajar con imágenes de la galería del móvil. Es una aplicación independiente.
 
@@ -9,7 +9,7 @@ MetaLima Ai es una aplicación para Android que reúne conversación por IA, tra
 | **Gafas y diagnóstico** | Vinculación mediante Meta AI y panel con conexión, batería, estado de carga, posición y firmware según los datos que expongan las gafas. Diagnóstico de permisos, micrófono, salida de sonido, cámara y conexión Live. |
 | **Conversación y visión con IA** | Conversación por texto, dictado y análisis de imágenes con OpenAI, Google Gemini, Grok o Alibaba Qwen, según el modelo configurado. Lectura en voz alta y turnos de audio con las gafas mediante modelos Gemini compatibles. |
 | **Conversación en directo** | Sesiones Gemini Live y OpenAI con el micrófono y la salida de sonido del móvil o con la ruta de voz de las gafas. Los modelos Gemini Live compatibles permiten pedir una imagen de las gafas y guardar notas durante la conversación. |
-| **Idiomas** | Español, inglés, alemán, italiano y chino mandarín simplificado para las respuestas de IA, el dictado, las frases de voz y la lectura con las voces de Android. La interfaz está en español. La traducción de voz y de imágenes permite elegir el idioma de destino de forma independiente. |
+| **Idiomas** | Interfaz en español, inglés, alemán, italiano y chino simplificado. El idioma del asistente se elige por separado y se aplica a las respuestas de IA, el dictado, las frases de voz y la lectura con las voces de Android. La traducción de voz y de imágenes tiene sus propios selectores de idioma. |
 | **Notas e historial** | Notas de texto o dictadas, archivos de imagen adjuntos, historial local con búsqueda y exportación de conversaciones a PDF. |
 | **Foto, vídeo y modo creador** | Fotos y vídeo de las gafas, grabación interactiva del visor con HUD, filtros y reacciones, audio opcional, marcas de momentos, guía de encuadre vertical y exportación de fragmentos a la galería. |
 | **Emisión en directo** | Destinos con iconos de YouTube, Twitch, TikTok, Kick, Facebook Live e Instagram Live. También admite OBS con servidor de ingestión y un destino RTMP personalizado. Se configura una URL y una clave por destino. |
@@ -18,13 +18,14 @@ MetaLima Ai es una aplicación para Android que reúne conversación por IA, tra
 
 ## Instalar la versión de prueba
 
-1. Abre `MetaLima-Ai-0.3.0.apk` en un teléfono con **Android 12 o posterior**. Si Android lo solicita, permite la instalación desde la aplicación con la que abriste el archivo.
-2. Si ya tienes la compilación de prueba 0.2.0 con la misma firma, instala el APK encima para conservar historial, notas, claves y ajustes.
+1. Descarga `MetaLima-Ai-0.4.0.apk` desde [la versión 0.4.0 en GitHub](https://github.com/yandelima2020/MetaLima-Ai/releases/tag/v0.4.0) y ábrelo en un teléfono con **Android 12 o posterior**. Si Android lo solicita, permite la instalación desde la aplicación con la que abriste el archivo.
+2. Si ya tienes la compilación de prueba 0.3.0 con la misma firma, instala el APK encima para conservar historial, notas, claves y ajustes.
 3. Para usar la cámara de las gafas, empareja las Ray-Ban Meta en **Meta AI**, activa el modo desarrollador de la integración y pulsa **Vincular** en MetaLima Ai. Acepta los permisos de Android y Meta que correspondan. Si el diagnóstico solicita actualizar el firmware o revisar **Conexiones de aplicaciones**, completa el paso en Meta AI y vuelve al visor.
 4. En **Ajustes → Inteligencia artificial**, elige un proveedor, configura un modelo compatible y guarda tu clave API. Puedes usar **Probar conexión** para verificar la configuración. Alibaba Qwen también usa una región y un espacio de trabajo. Las funciones de las gafas, la lectura local y el almacenamiento de notas tienen requisitos independientes de la clave de IA.
 
 ## Voz, idiomas y micrófono
 
+- En **Ajustes → Idioma y voz → Idioma de la aplicación**, elige un idioma para los menús, botones, avisos y pantallas. **Idioma del teléfono** sigue la configuración de Android y usa el español si el idioma del teléfono no está disponible. En Android 13 o posterior también puedes cambiarlo en los ajustes de idioma de MetaLima Ai en el sistema. Los diálogos que abre otra aplicación, como Meta AI, Maps o PayPal, dependen de esa aplicación.
 - En **Ajustes → Idioma y voz**, selecciona el idioma del asistente y la frase de activación. Para usar la frase, pulsa **Activar frase de voz** en **Inicio** y di la frase seguida de tu pregunta. La escucha termina con el resultado, un error, al salir o al cumplirse 10 segundos. Android tiene que ofrecer reconocimiento local para el idioma elegido.
 - **Inicio → Conversación en directo** permite elegir modelo y usar el audio del teléfono. Esta opción sirve con el Bluetooth apagado. Si quieres usar el micrófono de las gafas, Android debe ofrecerlas como dispositivo de llamadas. En una sesión Live, pulsa **Iniciar conversación**, espera a **Escuchando** y pulsa **Terminar conversación** al acabar.
 - Para hablar por turnos con las gafas en **Conversación**, selecciona Google Gemini y un modelo compatible con audio de entrada y respuestas estructuradas. Pulsa **Hablar con las gafas** y luego **Enviar audio**. El turno dispone de hasta 12 segundos. La opción **Repetir respuesta en las gafas** usa la síntesis de voz de Android.
@@ -61,7 +62,11 @@ El botón **Donar con PayPal** abre la página de PayPal para la cuenta configur
 - La latencia de audio y vídeo depende del móvil, las gafas, sus rutas Bluetooth, la red y el servidor del proveedor. Los modelos y las voces disponibles dependen de la cuenta, la región y el motor instalado. MetaLima Ai no requiere membresía. Los proveedores pueden pedir claves, cobrar por uso o aplicar cuotas.
 - Para confirmar el sonido que oyes, comprobar la cámara y la latencia de las Ray-Ban Meta y probar la publicación RTMP, se necesitan las gafas, el móvil y las cuentas que se usarán. Para verificar el destinatario en PayPal, abre el botón y comprueba lo que muestra la página antes de confirmar.
 
-## Pruebas de la 0.3.0
+## Pruebas de la 0.4.0
+
+Se verificó en el emulador que la 0.4.0 se instala encima de la 0.3.0. Se probaron los cinco idiomas de la interfaz, la persistencia al cerrar y abrir, el regreso al idioma del teléfono y la sincronización con Android. También se verificó que el idioma del asistente se conserva al cambiar la interfaz y que la actualización no solicita el micrófono al abrir, con el Bluetooth apagado.
+
+### Pruebas de la 0.3.0
 
 Se compiló y verificó el APK de prueba. En el emulador se instaló encima de la 0.2.0 con el Bluetooth apagado y la activación por voz habilitada en la configuración anterior. Android registró un acceso al micrófono al abrir la versión anterior y no registró un nuevo acceso al abrir la 0.3.0. También se probó el selector de cinco idiomas, la persistencia del idioma al reiniciar y la apertura de PayPal desde Donaciones.
 

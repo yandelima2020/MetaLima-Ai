@@ -16,6 +16,7 @@
 
 package com.lima.metalima.camera
 
+import com.lima.metalima.interfaceString
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -267,7 +268,7 @@ class CameraViewModel(
   fun startStreaming() {
     if (!_uiState.value.isSessionActive) {
       wearablesViewModel.setRecentError(
-          getApplication<Application>().getString(R.string.error_start_session_first),
+          getApplication<Application>().interfaceString(R.string.error_start_session_first),
       )
       return
     }
@@ -308,7 +309,7 @@ class CameraViewModel(
         beginStream()
       } else {
         wearablesViewModel.setRecentError(
-            getApplication<Application>().getString(R.string.error_camera_permission_denied),
+            getApplication<Application>().interfaceString(R.string.error_camera_permission_denied),
         )
       }
     }
@@ -346,7 +347,7 @@ class CameraViewModel(
           // Subscribe before start() so no initial transitions are missed.
           setupStreamListeners(added)
           _uiState.update { it.copy(streamState = StreamState.STARTING, adaptiveLabel =
-              if (adaptiveRequested) (if (adaptiveRetry) "Fluida · Baja · 15 FPS" else "Fluida · Media · 24 FPS") else null) }
+              if (adaptiveRequested) (if (adaptiveRetry) getApplication<Application>().interfaceString(R.string.fluida_baja_fps) else getApplication<Application>().interfaceString(R.string.fluida_media_fps)) else null) }
           added.start().onFailure { error, _ ->
             Log.e(TAG, "Failed to start stream: ${error.description}")
             wearablesViewModel.setRecentError(error.getLocalizedDescription(getApplication()))
@@ -526,19 +527,19 @@ class CameraViewModel(
       } catch (e: Exception) {
         Log.e(TAG, "Failed to capture photo", e)
         wearablesViewModel.setRecentError((e as? IllegalStateException)?.message
-            ?: getApplication<Application>().getString(R.string.error_photo_capture_failed))
+            ?: getApplication<Application>().interfaceString(R.string.error_photo_capture_failed))
       }
     }
   }
 
   internal suspend fun takeSnapshot(): Bitmap {
-    val source = stream ?: error("Abre la cámara de las gafas primero.")
-    check(_uiState.value.isStreaming) { "La cámara de las gafas aún no está lista." }
-    check(!_uiState.value.isCapturingPhoto) { "Ya hay una captura en curso." }
+    val source = stream ?: error(getApplication<Application>().interfaceString(R.string.abre_la_camara_de_las))
+    check(_uiState.value.isStreaming) { getApplication<Application>().interfaceString(R.string.la_camara_de_las_gafas) }
+    check(!_uiState.value.isCapturingPhoto) { getApplication<Application>().interfaceString(R.string.ya_hay_una_captura_en) }
     _uiState.update { it.copy(isCapturingPhoto = true) }
     try {
-      val photo = source.capturePhoto().getOrNull() ?: error("Meta no pudo capturar la imagen de las gafas.")
-      return withContext(Dispatchers.Default) { decodePhoto(photo) } ?: error("No se pudo leer la imagen de las gafas.")
+      val photo = source.capturePhoto().getOrNull() ?: error(getApplication<Application>().interfaceString(R.string.meta_no_pudo_capturar_la))
+      return withContext(Dispatchers.Default) { decodePhoto(photo) } ?: error(getApplication<Application>().interfaceString(R.string.no_se_pudo_leer_la_4))
     } finally {
       _uiState.update { it.copy(isCapturingPhoto = false) }
     }
@@ -573,7 +574,7 @@ class CameraViewModel(
       } catch (error: Exception) {
         Log.e(TAG, "Could not start recording", error)
         runCatching { videoRecorder.stopRecording() }
-        wearablesViewModel.setRecentError("No se pudo iniciar la grabación.")
+        wearablesViewModel.setRecentError(getApplication<Application>().interfaceString(R.string.no_se_pudo_iniciar_la))
       } finally {
         recordingSetup = false
       }
@@ -594,11 +595,11 @@ class CameraViewModel(
           _uiState.update { it.copy(activePreview = CapturePreview.Video(result.uri, it.recordingMarks)) }
       RecordingResult.NoRecording ->
           wearablesViewModel.setRecentError(
-              getApplication<Application>().getString(R.string.error_recording_too_short),
+              getApplication<Application>().interfaceString(R.string.error_recording_too_short),
           )
       RecordingResult.Failed ->
           wearablesViewModel.setRecentError(
-              getApplication<Application>().getString(R.string.error_recording_save_failed),
+              getApplication<Application>().interfaceString(R.string.error_recording_save_failed),
           )
     }
   }

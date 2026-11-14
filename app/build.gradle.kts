@@ -19,8 +19,8 @@ android {
         applicationId = "com.lima.metalima"
         minSdk = 31
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.3.0"
+        versionCode = 7
+        versionName = "0.4.0"
         manifestPlaceholders["mwdat_application_id"] = local.getProperty("mwdat_application_id", "0")
         manifestPlaceholders["mwdat_client_token"] = local.getProperty("mwdat_client_token", "0")
     }

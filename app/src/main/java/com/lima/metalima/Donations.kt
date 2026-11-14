@@ -1,5 +1,6 @@
 package com.lima.metalima
 
+import androidx.compose.ui.res.stringResource
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -25,18 +26,18 @@ private val donationUrl = Uri.parse("https://www.paypal.com/cgi-bin/webscr").bui
     .build()
 
 @Composable internal fun Donations(activity: MainActivity, notify: (String) -> Unit) {
-    Heading("Donaciones")
+    Heading(stringResource(R.string.donaciones))
     Block {
-        Text("No quiero llenarte de publicidad la app. Quiero que puedas sacar el máximo provecho. Si consideras que vale la pena el esfuerzo, dona lo que tú quieras.")
+        Text(stringResource(R.string.no_quiero_llenarte_de_publicidad))
         Button(modifier = Modifier.fillMaxWidth(), onClick = {
             try {
                 activity.startActivity(Intent(Intent.ACTION_VIEW, donationUrl))
             } catch (_: ActivityNotFoundException) {
-                notify("Android necesita un navegador para abrir PayPal.")
+                notify(activity.getString(R.string.android_necesita_un_navegador_para))
             }
         }) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Donar con PayPal")
+                Text(stringResource(R.string.donar_con_paypal))
                 Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
             }
         }

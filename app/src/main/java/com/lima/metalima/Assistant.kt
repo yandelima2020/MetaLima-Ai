@@ -32,12 +32,12 @@ enum class Provider(val label: String, val model: String) {
     GROK("Grok", "grok-4-1-fast-non-reasoning"),
     QWEN("Alibaba Qwen", "qwen3-vl-flash");
 
-    fun url(workspace: String, china: Boolean): String = when (this) {
+    internal fun url(context: Context, workspace: String, china: Boolean): String = when (this) {
         OPENAI -> "https://api.openai.com/v1/chat/completions"
         GEMINI -> "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         GROK -> "https://api.x.ai/v1/chat/completions"
         QWEN -> {
-            require(workspace.matches(Regex("[A-Za-z0-9-]{1,100}"))) { "Introduce un ID de espacio de trabajo de Alibaba válido." }
+            require(workspace.matches(Regex("[A-Za-z0-9-]{1,100}"))) { context.interfaceString(R.string.introduce_un_id_de_espacio) }
             if (china) "https://$workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions"
             else "https://$workspace.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions"
         }
@@ -56,7 +56,7 @@ data class AssistantState(
     val hasOpenAiKey: Boolean = false
 )
 
-class AssistantViewModel(application: Application) : AndroidViewModel(application) {
+class AssistantViewModel(private val application: Application) : AndroidViewModel(application) {
     private val store = application.getSharedPreferences("studio", Context.MODE_PRIVATE)
     private val secrets = Vault(application)
     private val selected = runCatching { Provider.valueOf(store.getString("provider", "OPENAI")!!) }.getOrDefault(Provider.OPENAI)
@@ -75,8 +75,8 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                 .putString("qwen-workspace", workspace.trim()).putBoolean("qwen-china", china).apply()
             current.update { it.copy(provider = provider, hasKey = secrets.exists(provider.name),
                 hasGeminiKey = secrets.exists(Provider.GEMINI.name), hasOpenAiKey = secrets.exists(Provider.OPENAI.name),
-                notice = "Configuración guardada.") }
-        }.onFailure { current.update { it.copy(notice = "No se pudo guardar la configuración de forma segura.") } }
+                notice = application.interfaceString(R.string.configuracion_guardada)) }
+        }.onFailure { current.update { it.copy(notice = application.interfaceString(R.string.no_se_pudo_guardar_la_4)) } }
     }
 
     fun forgetKey(provider: Provider) {
@@ -84,17 +84,17 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         secrets.delete(provider.name)
         current.update { it.copy(hasKey = if (it.provider == provider) false else it.hasKey,
             hasGeminiKey = secrets.exists(Provider.GEMINI.name), hasOpenAiKey = secrets.exists(Provider.OPENAI.name),
-            notice = "Clave eliminada.") }
+            notice = application.interfaceString(R.string.clave_eliminada)) }
     }
 
     internal fun liveKey(provider: Provider): String = secrets.read(provider.name)
-        ?: error("Guarda tu clave de ${provider.label} en Ajustes para iniciar la conversación en directo.")
+        ?: error(application.interfaceString(R.string.guarda_tu_clave_de_en, provider.label))
 
     internal fun saveKey(provider: Provider, key: String) {
         runCatching { secrets.write(provider.name, key.trim()) }.onSuccess {
             current.update { it.copy(hasKey = secrets.exists(it.provider.name), hasGeminiKey = secrets.exists(Provider.GEMINI.name),
-                hasOpenAiKey = secrets.exists(Provider.OPENAI.name), notice = "Clave guardada para ${provider.label}.") }
-        }.onFailure { current.update { it.copy(notice = "No se pudo guardar la clave de forma segura.") } }
+                hasOpenAiKey = secrets.exists(Provider.OPENAI.name), notice = application.interfaceString(R.string.clave_guardada_para, provider.label)) }
+        }.onFailure { current.update { it.copy(notice = application.interfaceString(R.string.no_se_pudo_guardar_la_3)) } }
     }
 
     internal fun saveLiveTurn(turn: Turn) {
@@ -139,16 +139,16 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             try {
                 val (heard, answer) = withContext(Dispatchers.IO) {
-                    val key = secrets.read(from.provider.name) ?: error("Configura una clave de ${from.provider.label} en Ajustes.")
+                    val key = secrets.read(from.provider.name) ?: error(application.interfaceString(R.string.configura_una_clave_de_en, from.provider.label))
                     val model = configuredModel(from.provider)
                     val history = if (continuation) from.turns.filter { it.session == from.session }.takeLast(8) else emptyList()
-                    if (wav == null) question.trim() to requestChat(from.provider, key, model, workspace, china, question.trim(), image, history, language)
+                    if (wav == null) question.trim() to requestChat(application, from.provider, key, model, workspace, china, question.trim(), image, history, language)
                     else {
-                        require(from.provider == Provider.GEMINI) { "Selecciona Google Gemini para hablar con las gafas." }
-                        requestGeminiAudio(key, model, wav, image, history, language)
+                        require(from.provider == Provider.GEMINI) { application.interfaceString(R.string.selecciona_google_gemini_para_hablar) }
+                        requestGeminiAudio(application, key, model, wav, image, history, language)
                     }
                 }
-                if (check) current.update { it.copy(notice = "Conexión verificada con ${from.provider.label}.") }
+                if (check) current.update { it.copy(notice = application.interfaceString(R.string.conexion_verificada_con, from.provider.label)) }
                 else {
                     saveLiveTurn(Turn(heard, answer, System.currentTimeMillis(), from.session))
                     done(answer)
@@ -156,11 +156,11 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: IllegalStateException) {
-                current.update { it.copy(notice = exception.message ?: "No se pudo completar la consulta.") }
+                current.update { it.copy(notice = exception.message ?: application.interfaceString(R.string.no_se_pudo_completar_la)) }
             } catch (exception: IllegalArgumentException) {
-                current.update { it.copy(notice = exception.message ?: "Revisa la configuración del proveedor.") }
+                current.update { it.copy(notice = exception.message ?: application.interfaceString(R.string.revisa_la_configuracion_del_proveedor)) }
             } catch (_: Exception) {
-                current.update { it.copy(notice = "No se pudo contactar con el proveedor. Comprueba la conexión y vuelve a intentarlo.") }
+                current.update { it.copy(notice = application.interfaceString(R.string.no_se_pudo_contactar_con)) }
             } finally {
                 current.update { it.copy(busy = false) }
             }
@@ -182,7 +182,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     }
 }
 
-private fun requestChat(provider: Provider, key: String, model: String, workspace: String, china: Boolean, question: String, image: Bitmap?, history: List<Turn>, language: String): String {
+private fun requestChat(context: Context, provider: Provider, key: String, model: String, workspace: String, china: Boolean, question: String, image: Bitmap?, history: List<Turn>, language: String): String {
     val messages = JSONArray().put(message("system", "Responde en $language con naturalidad y precisión. Usa el idioma de destino si la consulta pide traducir. Da respuestas concisas. Si una imagen no aporta evidencia suficiente, dilo."))
     history.forEach { messages.put(message("user", it.user)).put(message("assistant", it.answer)) }
     val content = if (image == null) question else {
@@ -191,14 +191,14 @@ private fun requestChat(provider: Provider, key: String, model: String, workspac
     }
     messages.put(message("user", content))
     val payload = JSONObject().put("model", model).put("messages", messages)
-    val response = postJson(provider, provider.url(workspace, china), "Authorization", "Bearer $key", payload)
+    val response = postJson(context, provider, provider.url(context, workspace, china), "Authorization", "Bearer $key", payload)
     val answer = response.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty().trim()
-    return answer.ifEmpty { error("${provider.label} no devolvió una respuesta de texto.") }
+    return answer.ifEmpty { error(context.interfaceString(R.string.no_devolvio_una_respuesta_de, provider.label)) }
 }
 
-private fun requestGeminiAudio(key: String, model: String, wav: ByteArray, image: Bitmap?, history: List<Turn>, language: String): Pair<String, String> {
+private fun requestGeminiAudio(context: Context, key: String, model: String, wav: ByteArray, image: Bitmap?, history: List<Turn>, language: String): Pair<String, String> {
     val id = model.removePrefix("models/")
-    require(id.matches(Regex("[A-Za-z0-9._-]{1,120}"))) { "Revisa el identificador del modelo Gemini en Ajustes." }
+    require(id.matches(Regex("[A-Za-z0-9._-]{1,120}"))) { context.interfaceString(R.string.revisa_el_identificador_del_modelo) }
     fun text(value: String) = JSONObject().put("text", value)
     fun content(role: String, parts: JSONArray) = JSONObject().put("role", role).put("parts", parts)
     fun media(mime: String, data: String) = JSONObject().put("inlineData", JSONObject().put("mimeType", mime).put("data", data))
@@ -220,7 +220,7 @@ private fun requestGeminiAudio(key: String, model: String, wav: ByteArray, image
     val payload = JSONObject().put("systemInstruction", JSONObject().put("parts", JSONArray().put(text(system))))
         .put("contents", contents)
         .put("generationConfig", JSONObject().put("responseMimeType", "application/json").put("responseSchema", schema))
-    val response = postJson(Provider.GEMINI, "https://generativelanguage.googleapis.com/v1beta/models/$id:generateContent",
+    val response = postJson(context, Provider.GEMINI, "https://generativelanguage.googleapis.com/v1beta/models/$id:generateContent",
         "x-goog-api-key", key, payload)
     val returned = response.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
     val result = buildString {
@@ -230,12 +230,12 @@ private fun requestGeminiAudio(key: String, model: String, wav: ByteArray, image
         }
     }
     val reply = runCatching { JSONObject(result) }.getOrElse {
-        error("Gemini no devolvió una respuesta de voz interpretable. Revisa que el modelo admita audio.")
+        error(context.interfaceString(R.string.gemini_no_devolvio_una_respuesta))
     }
     val heard = reply.optString("transcription").trim()
     val answer = reply.optString("answer").trim()
-    check(heard.isNotEmpty()) { "Gemini no entendió la pregunta. Vuelve a hablar más cerca del micrófono de las gafas." }
-    check(answer.isNotEmpty()) { "Gemini reconoció tu voz, pero no devolvió una respuesta." }
+    check(heard.isNotEmpty()) { context.interfaceString(R.string.gemini_no_entendio_la_pregunta) }
+    check(answer.isNotEmpty()) { context.interfaceString(R.string.gemini_reconocio_tu_voz_pero) }
     return heard to answer
 }
 
@@ -247,7 +247,7 @@ internal fun jpegBase64(image: Bitmap, maxSide: Int = 1280): String {
     return Base64.encodeToString(data.toByteArray(), Base64.NO_WRAP)
 }
 
-private fun postJson(provider: Provider, url: String, authHeader: String, auth: String, payload: JSONObject): JSONObject {
+private fun postJson(context: Context, provider: Provider, url: String, authHeader: String, auth: String, payload: JSONObject): JSONObject {
     val connection = URI(url).toURL().openConnection() as HttpURLConnection
     try {
         connection.requestMethod = "POST"
@@ -263,10 +263,10 @@ private fun postJson(provider: Provider, url: String, authHeader: String, auth: 
         val status = connection.responseCode
         check(status in 200..299) {
             when (status) {
-                400, 404 -> "${provider.label} rechazó la solicitud ($status). Revisa el modelo y si admite la función solicitada."
-                401, 403 -> "${provider.label} rechazó la clave o los permisos ($status). Revisa Ajustes."
-                402, 429 -> "${provider.label} indicó un límite de uso o un problema de saldo ($status)."
-                else -> "${provider.label} devolvió un error ($status). Inténtalo de nuevo."
+                400, 404 -> context.interfaceString(R.string.rechazo_la_solicitud_revisa_el, provider.label, status)
+                401, 403 -> context.interfaceString(R.string.rechazo_la_clave_o_los, provider.label, status)
+                402, 429 -> context.interfaceString(R.string.indico_un_limite_de_uso, provider.label, status)
+                else -> context.interfaceString(R.string.devolvio_un_error_intentalo_de, provider.label, status)
             }
         }
         return JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
@@ -275,7 +275,7 @@ private fun postJson(provider: Provider, url: String, authHeader: String, auth: 
 
 private fun message(role: String, content: Any) = JSONObject().put("role", role).put("content", content)
 
-internal class Vault(context: Context) {
+internal class Vault(private val context: Context) {
     private val prefs = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
     fun exists(name: String) = prefs.contains(name)
     fun delete(name: String) { prefs.edit().remove(name).apply() }
@@ -292,7 +292,7 @@ internal class Vault(context: Context) {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12)))
             cipher.doFinal(bytes.copyOfRange(12, bytes.size)).toString(Charsets.UTF_8)
-        }.getOrElse { error("No se pudo recuperar la clave guardada. Vuelve a introducirla en Ajustes.") }
+        }.getOrElse { error(context.interfaceString(R.string.no_se_pudo_recuperar_la)) }
     }
     @Synchronized private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

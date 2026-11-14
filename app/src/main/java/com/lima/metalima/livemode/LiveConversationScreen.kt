@@ -1,5 +1,6 @@
 package com.lima.metalima.livemode
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lima.metalima.*
+import com.lima.metalima.R
 
 @Composable internal fun LiveConversationScreen(
     state: LiveConversationState, selected: LiveModel, usePhone: Boolean, hasKey: Boolean, blocked: Boolean,
@@ -34,69 +36,69 @@ import com.lima.metalima.*
     }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(bottom = 12.dp).navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (translation == null) "Conversación en directo" else "Traducción por voz",
+        Text(if (translation == null) stringResource(R.string.conversacion_en_directo) else stringResource(R.string.traduccion_por_voz),
             style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         if (!state.active) {
             var expanded by remember { mutableStateOf(false) }
             Box {
-                OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selected.label) }
+                OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selected.displayLabel()) }
                 DropdownMenu(expanded, { expanded = false }, modifier = Modifier.heightIn(max = 380.dp)) {
                     listOf("Google Gemini", "OpenAI").forEach { provider ->
                         Text(provider, color = Lime, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(12.dp))
                         LiveModel.entries.filter { it.provider.label == provider }.forEach { model ->
-                            DropdownMenuItem(text = { Text(model.label) }, onClick = { select(model); expanded = false })
+                            DropdownMenuItem(text = { Text(model.displayLabel()) }, onClick = { select(model); expanded = false })
                         }
                     }
                 }
             }
-            SwitchRow("Usar micrófono y altavoz del móvil", usePhone) { choosePhone(it) }
+            SwitchRow(stringResource(R.string.usar_microfono_y_altavoz_del), usePhone) { choosePhone(it) }
             if (translation != null) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column(Modifier.weight(1f)) { Choice("Idioma 1", translation.from, translationLanguages.filterNot { it == translation.to }) {
+                    Column(Modifier.weight(1f)) { Choice(stringResource(R.string.idioma_2), translation.from, translationLanguages.filterNot { it == translation.to }, display = { translationLabel(it) }) {
                         chooseLanguages(translation.copy(from = it))
                     } }
-                    Column(Modifier.weight(1f)) { Choice("Idioma 2", translation.to, translationLanguages.filterNot { it == translation.from }) {
+                    Column(Modifier.weight(1f)) { Choice(stringResource(R.string.idioma), translation.to, translationLanguages.filterNot { it == translation.from }, display = { translationLabel(it) }) {
                         chooseLanguages(translation.copy(to = it))
                     } }
                 }
             }
-            if (!hasKey) TextButton(onClick = configure) { Text("Configurar clave de ${selected.provider.label}") }
+            if (!hasKey) TextButton(onClick = configure) { Text(stringResource(R.string.configurar_clave_de, selected.provider.label)) }
         }
         val status = when (state.phase) {
-            LivePhase.IDLE -> "Listo para iniciar"
-            LivePhase.CONNECTING -> "Conectando…"
-            LivePhase.LISTENING -> if (state.speaking) "Respondiendo · Puedes interrumpir" else "Escuchando"
-            LivePhase.RECONNECTING -> "Recuperando conexión…"
-            LivePhase.STOPPING -> "Cerrando sesión…"
+            LivePhase.IDLE -> stringResource(R.string.listo_para_iniciar)
+            LivePhase.CONNECTING -> stringResource(R.string.conectando)
+            LivePhase.LISTENING -> if (state.speaking) stringResource(R.string.respondiendo_puedes_interrumpir) else stringResource(R.string.escuchando)
+            LivePhase.RECONNECTING -> stringResource(R.string.recuperando_conexion)
+            LivePhase.STOPPING -> stringResource(R.string.cerrando_sesion)
         }
         if (state.active) Surface(color = SurfaceTone, shape = Panel, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(status, color = Lime, fontWeight = FontWeight.SemiBold)
-                Text(listOfNotNull(selected.label, state.device).joinToString(" · "), color = Muted)
-                if (translation != null) Text("${translation.from} ↔ ${translation.to}", color = Muted)
+                Text(listOfNotNull(selected.displayLabel(), state.device).joinToString(" · "), color = Muted)
+                if (translation != null) Text("${translationLabel(translation.from)} ↔ ${translationLabel(translation.to)}", color = Muted)
             }
         }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (blocked && !state.active) Text("Espera a que termine la consulta o detén la grabación o emisión activa.", color = Muted)
+        if (blocked && !state.active) Text(stringResource(R.string.espera_a_que_termine_la), color = Muted)
         if (enableVision != null && (translation == null || state.active)) {
             visualPreview?.invoke()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = enableVision, enabled = !visionBusy) {
                     Icon(Icons.Outlined.Visibility, null, Modifier.size(17.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(if (visualPreview != null) "Cerrar visión" else if (visionBusy) "Abriendo cámara…" else "Activar visión")
+                    Text(if (visualPreview != null) stringResource(R.string.cerrar_vision) else if (visionBusy) stringResource(R.string.abriendo_camara) else stringResource(R.string.activar_vision))
                 }
-                if (takeFrame != null) OutlinedButton(onClick = takeFrame, enabled = !visionBusy) { Text("Enviar imagen") }
+                if (takeFrame != null) OutlinedButton(onClick = takeFrame, enabled = !visionBusy) { Text(stringResource(R.string.enviar_imagen)) }
             }
             if (visualPreview != null) Text(
-                if (state.active) "Puedes decir «¿qué estoy viendo?» o enviar una imagen ahora."
-                else "Con el visor listo, inicia la conversación para usar la imagen.",
+                if (state.active) stringResource(R.string.puedes_decir_que_estoy_viendo)
+                else stringResource(R.string.con_el_visor_listo_inicia),
                 color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         LazyColumn(state = scroll, modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(9.dp)) {
             if (recent.isEmpty() && state.question.isBlank() && state.answer.isBlank()) item {
-                Text(if (state.active) "Habla cuando aparezca «Escuchando»." else "Idioma de conversación: ${language.label}. Pulsa Iniciar para hablar.",
+                Text(if (state.active) stringResource(R.string.habla_cuando_aparezca_escuchando) else stringResource(R.string.idioma_de_conversacion_pulsa_iniciar, language.label),
                     color = Muted, modifier = Modifier.padding(vertical = 12.dp))
             }
             items(recent) {
@@ -111,15 +113,24 @@ import com.lima.metalima.*
             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Icon(if (state.active) Icons.Outlined.Stop else Icons.Outlined.Mic, null)
             Spacer(Modifier.width(8.dp))
-            Text(if (state.active) "Terminar conversación" else "Iniciar conversación")
+            Text(if (state.active) stringResource(R.string.terminar_conversacion) else stringResource(R.string.iniciar_conversacion))
         }
     }
 }
 
+@Composable internal fun LiveModel.displayLabel(): String {
+    val qualifier = when {
+        this == LiveModel.GEMINI_25 -> R.string.model_native_audio
+        label.endsWith(" · Anterior") -> R.string.model_legacy
+        else -> return label
+    }
+    return label.substringBeforeLast(" · ") + " · " + stringResource(qualifier)
+}
+
 @Composable private fun Transcript(question: String, answer: String) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (question.isNotBlank()) Bubble("Tú", question, Lime.copy(alpha = .15f), Modifier.align(Alignment.End))
-        if (answer.isNotBlank()) Bubble("IA", answer, SurfaceTone, Modifier.align(Alignment.Start))
+        if (question.isNotBlank()) Bubble(stringResource(R.string.tu), question, Lime.copy(alpha = .15f), Modifier.align(Alignment.End))
+        if (answer.isNotBlank()) Bubble(stringResource(R.string.ai_speaker), answer, SurfaceTone, Modifier.align(Alignment.Start))
     }
 }
 

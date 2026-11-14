@@ -1,5 +1,7 @@
 package com.lima.metalima.livemode
 
+import com.lima.metalima.interfaceString
+import com.lima.metalima.R
 import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioAttributes
@@ -24,7 +26,7 @@ private const val OUTPUT_RATE = 24_000
 private const val MAX_QUEUED_BYTES = OUTPUT_RATE * 2 * 30
 
 /** One Android communications route for both directions, held until the session finishes. */
-internal class LiveAudio(context: Context, private val inputRate: Int) : AutoCloseable {
+internal class LiveAudio(private val context: Context, private val inputRate: Int) : AutoCloseable {
     private val manager = context.getSystemService(AudioManager::class.java)
     private var restoreMode: Int? = null
     private var record: AudioRecord? = null
@@ -43,21 +45,21 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
     suspend fun open(names: List<String>, usePhone: Boolean): String = withContext(Dispatchers.IO) {
         val device = if (usePhone) manager.availableCommunicationDevices.firstOrNull {
             it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
-        } ?: error("Android no encontró el altavoz del móvil.")
-        else selectGlassesDevice(manager, names, allowBle = true)
+        } ?: error(context.interfaceString(R.string.android_no_encontro_el_altavoz))
+        else selectGlassesDevice(context, manager, names, allowBle = true)
         restoreMode = manager.mode
         manager.mode = AudioManager.MODE_IN_COMMUNICATION
-        check(manager.setCommunicationDevice(device)) { "Android no pudo abrir la ruta de voz seleccionada." }
+        check(manager.setCommunicationDevice(device)) { context.interfaceString(R.string.android_no_pudo_abrir_la) }
         check(withTimeoutOrNull(4_000) {
             while (manager.communicationDevice?.id != device.id) delay(50)
             true
-        } == true) { "La conexión de voz no se activó. Revisa Llamadas en los ajustes Bluetooth de tus gafas." }
+        } == true) { context.interfaceString(R.string.la_conexion_de_voz_no) }
         deviceId = device.id
         inputDeviceType = if (usePhone) AudioDeviceInfo.TYPE_BUILTIN_MIC else device.type
 
         val inputBuffer = AudioRecord.getMinBufferSize(inputRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val outputBuffer = AudioTrack.getMinBufferSize(OUTPUT_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        check(inputBuffer > 0 && outputBuffer > 0) { "El teléfono no pudo preparar el audio en directo." }
+        check(inputBuffer > 0 && outputBuffer > 0) { context.interfaceString(R.string.el_telefono_no_pudo_preparar) }
         val microphone = AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
             .setAudioFormat(AudioFormat.Builder().setSampleRate(inputRate).setChannelMask(AudioFormat.CHANNEL_IN_MONO)
                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
@@ -71,15 +73,15 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
             .setTransferMode(AudioTrack.MODE_STREAM).build()
         track = speaker
         check(microphone.state == AudioRecord.STATE_INITIALIZED && speaker.state == AudioTrack.STATE_INITIALIZED) {
-            "El teléfono no pudo iniciar la ruta de audio en directo."
+            context.interfaceString(R.string.el_telefono_no_pudo_iniciar)
         }
-        if (!usePhone) check(speaker.setPreferredDevice(device)) { "Android no pudo seleccionar la salida de las gafas." }
+        if (!usePhone) check(speaker.setPreferredDevice(device)) { context.interfaceString(R.string.android_no_pudo_seleccionar_la) }
         if (usePhone && AcousticEchoCanceler.isAvailable()) {
             echoCanceler = runCatching { AcousticEchoCanceler.create(microphone.audioSessionId) }.getOrNull()
             runCatching { echoCanceler?.enabled = true }
         }
         microphone.startRecording()
-        check(microphone.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "Android no pudo iniciar el micrófono." }
+        check(microphone.recordingState == AudioRecord.RECORDSTATE_RECORDING) { context.interfaceString(R.string.android_no_pudo_iniciar_el) }
         check(withTimeoutOrNull(2_000) {
             val probe = ByteArray(inputRate / 25)
             while (microphone.routedDevice?.let { source ->
@@ -91,12 +93,12 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
             }
             true
         } == true) {
-            if (usePhone) "Android no pudo seleccionar el micrófono del móvil."
-            else "Android no está usando el micrófono de las gafas. Comprueba la opción Llamadas en Bluetooth."
+            if (usePhone) context.interfaceString(R.string.android_no_pudo_seleccionar_el)
+            else context.interfaceString(R.string.android_no_esta_usando_el)
         }
         runCatching { speaker.setStartThresholdInFrames(minOf(speaker.bufferSizeInFrames, OUTPUT_RATE / 25)) }
         speaker.play()
-        if (usePhone) "Micrófono y altavoz del móvil" else device.productName.toString()
+        if (usePhone) context.interfaceString(R.string.microfono_y_altavoz_del_movil) else device.productName.toString()
     }
 
     suspend fun capture(send: (ByteArray, Int, Int) -> Unit) = withContext(Dispatchers.IO) {
@@ -109,12 +111,12 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
             if (now >= nextRouteCheck) {
                 verifyRoute()
                 check(microphone.routedDevice?.type == inputDeviceType) {
-                    "El micrófono dejó de usar la ruta de voz seleccionada. Vuelve a iniciar la conversación."
+                    context.interfaceString(R.string.el_microfono_dejo_de_usar)
                 }
                 nextRouteCheck = now + 100
             }
             val count = microphone.read(frame, bytesRead, frame.size - bytesRead, AudioRecord.READ_NON_BLOCKING)
-            check(count >= 0) { "Se interrumpió el micrófono durante la conversación." }
+            check(count >= 0) { context.interfaceString(R.string.se_interrumpio_el_microfono_durante) }
             bytesRead += count
             if (bytesRead == frame.size) {
                 send(frame, bytesRead, inputRate)
@@ -125,7 +127,7 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
     }
 
     fun enqueue(bytes: ByteArray) = synchronized(playbackLock) {
-        check(pendingSize + bytes.size <= MAX_QUEUED_BYTES) { "Demasiado audio en espera. Reinicia la conversación." }
+        check(pendingSize + bytes.size <= MAX_QUEUED_BYTES) { context.interfaceString(R.string.demasiado_audio_en_espera_reinicia) }
         pending.addLast(bytes)
         pendingSize += bytes.size
         playbackReady.trySend(Unit)
@@ -157,7 +159,7 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
         while (android.os.SystemClock.elapsedRealtime() < until && coroutineContext.isActive) {
             verifyRoute()
             val count = microphone.read(samples, 0, samples.size, AudioRecord.READ_NON_BLOCKING)
-            check(count >= 0) { "Se interrumpió la lectura del micrófono." }
+            check(count >= 0) { context.interfaceString(R.string.se_interrumpio_la_lectura_del) }
             for (i in 0 until count) peak = maxOf(peak, kotlin.math.abs(samples[i].toInt()))
             delay(24)
         }
@@ -165,7 +167,7 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
             val edge = minOf(1f, i / 240f, (OUTPUT_RATE / 3 - i) / 240f)
             (kotlin.math.sin(i * 2 * Math.PI * 660 / OUTPUT_RATE) * 6000 * edge).toInt().toShort()
         }
-        check(speaker.write(tone, 0, tone.size, AudioTrack.WRITE_BLOCKING) > 0) { "Android no pudo reproducir el tono de prueba." }
+        check(speaker.write(tone, 0, tone.size, AudioTrack.WRITE_BLOCKING) > 0) { context.interfaceString(R.string.android_no_pudo_reproducir_el) }
         delay(400)
         peak > 300
     }
@@ -179,7 +181,7 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
                 val wrote = if (next != null) {
                     verifyRoute()
                     val count = speaker.write(next, offset, next.size - offset, AudioTrack.WRITE_NON_BLOCKING)
-                    check(count >= 0) { "Se interrumpió el audio de respuesta." }
+                    check(count >= 0) { context.interfaceString(R.string.se_interrumpio_el_audio_de) }
                     offset += count
                     pendingSize -= count
                     writtenFrames += count / 2
@@ -202,7 +204,7 @@ internal class LiveAudio(context: Context, private val inputRate: Int) : AutoClo
 
     private fun verifyRoute() {
         check(manager.communicationDevice?.id == deviceId) {
-            "Se perdió la ruta de voz. Si usas gafas, vuelve a conectarlas por Bluetooth y pulsa Iniciar de nuevo."
+            context.interfaceString(R.string.se_perdio_la_ruta_de)
         }
     }
 

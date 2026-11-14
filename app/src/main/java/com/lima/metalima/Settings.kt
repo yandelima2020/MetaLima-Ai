@@ -1,5 +1,6 @@
 package com.lima.metalima
 
+import androidx.compose.ui.res.stringResource
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -48,136 +49,155 @@ import com.lima.metalima.wearables.WearablesViewModel
     var streamFps by remember { mutableIntStateOf(prefs.streamFps) }
     var streamAudio by remember { mutableStateOf(prefs.streamAudio) }
 
-    Heading("Ajustes")
-    Section("Idioma y voz")
+    Heading(stringResource(R.string.ajustes))
+    Section(stringResource(R.string.idioma_y_voz))
     Block {
-        Choice("Idioma del asistente", language.label, AppLanguage.entries.map { it.label }) { label ->
+        val systemLanguage = stringResource(R.string.language_system)
+        val interfaceLanguage = activity.selectedInterfaceLanguage()
+        Choice(stringResource(R.string.language_app), interfaceLanguage?.label ?: systemLanguage,
+            listOf(systemLanguage) + AppLanguage.entries.map { it.label }) { label ->
+            activity.setInterfaceLanguage(AppLanguage.entries.firstOrNull { it.label == label })
+        }
+        Text(stringResource(R.string.language_app_summary), color = Muted)
+        Choice(stringResource(R.string.idioma_del_asistente), language.label, AppLanguage.entries.map { it.label }) { label ->
             setLanguage(AppLanguage.entries.first { it.label == label })
         }
-        Text("Se aplica a las respuestas, el dictado y la lectura en voz alta.", color = Muted)
-        Choice("Frase de activación", phrase, language.wakePhrases, setPhrase)
-        Text("Para escuchar la frase, pulsa Activar frase de voz en Inicio. Usa el reconocimiento sin conexión de Android.", color = Muted)
+        Text(stringResource(R.string.se_aplica_a_las_respuestas), color = Muted)
+        Choice(stringResource(R.string.frase_de_activacion), phrase, language.wakePhrases, select = setPhrase)
+        Text(stringResource(R.string.para_escuchar_la_frase_pulsa), color = Muted)
     }
-    Section("Apariencia")
+    Section(stringResource(R.string.apariencia))
     Block {
         Skin.entries.forEach { appearance ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RadioButton(selected = skin == appearance, onClick = { setSkin(appearance) })
-                Text(appearance.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(appearance.label), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                 Box(Modifier.size(18.dp).background(Color(appearance.accent), CircleShape))
                 Box(Modifier.size(18.dp).background(Color(appearance.background), CircleShape))
             }
         }
     }
-    Section("Gafas y sistema")
-    ActionTile(Icons.Outlined.Bluetooth, if (device.isRegistered) "Desvincular mis gafas" else "Vincular mis gafas",
-        if (device.isRegistering) "Vinculación en curso" else if (device.hasActiveDevice) "Dispositivo activo" else "Conexión con Meta AI") {
-        if (device.isRegistered) runCatching { glasses.startUnregistration(activity) }.onFailure { notify("No se pudo abrir Meta AI.") }
+    Section(stringResource(R.string.gafas_y_sistema))
+    ActionTile(Icons.Outlined.Bluetooth, if (device.isRegistered) stringResource(R.string.desvincular_mis_gafas) else stringResource(R.string.vincular_mis_gafas),
+        if (device.isRegistering) stringResource(R.string.vinculacion_en_curso) else if (device.hasActiveDevice) stringResource(R.string.dispositivo_activo) else stringResource(R.string.conexion_con_meta_ai)) {
+        if (device.isRegistered) runCatching { glasses.startUnregistration(activity) }.onFailure { notify(activity.getString(R.string.no_se_pudo_abrir_meta_2)) }
         else if (!device.isRegistering) activity.connectGlasses()
     }
-    ActionTile(Icons.Outlined.Devices, "Dispositivos conectados", "${device.devices.size} detectados") { devices = !devices }
+    ActionTile(Icons.Outlined.Devices, stringResource(R.string.dispositivos_conectados), stringResource(R.string.detectados, device.devices.size)) { devices = !devices }
     if (devices) Block {
-        if (device.devices.isEmpty()) Text("No hay gafas disponibles.", color = Muted)
+        if (device.devices.isEmpty()) Text(stringResource(R.string.no_hay_gafas_disponibles), color = Muted)
         device.devices.forEachIndexed { index, id ->
             val details = device.deviceDetails[id]
-            Text(details?.name?.takeIf { it.isNotBlank() } ?: "Gafas Meta ${index + 1}", style = MaterialTheme.typography.titleMedium)
+            Text(details?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.gafas_meta, index + 1), style = MaterialTheme.typography.titleMedium)
             details?.let {
-                val linked = when (it.linkState.name) { "CONNECTED" -> "Conectadas"; "CONNECTING" -> "Conectando"; else -> "Desconectadas" }
-                val hinge = when (it.hingeState.name) { "OPEN" -> "Abiertas"; "CLOSED" -> "Plegadas"; else -> "Posición desconocida" }
-                val charge = if (it.chargingState.name == "CHARGING") " · Cargando" else ""
+                val linked = when (it.linkState.name) { "CONNECTED" -> stringResource(R.string.conectadas); "CONNECTING" -> stringResource(R.string.conectando_2); else -> stringResource(R.string.desconectadas) }
+                val hinge = when (it.hingeState.name) { "OPEN" -> stringResource(R.string.abiertas); "CLOSED" -> stringResource(R.string.plegadas); else -> stringResource(R.string.posicion_desconocida) }
+                val charge = if (it.chargingState.name == "CHARGING") stringResource(R.string.cargando) else ""
                 val battery = it.batteryLevel.takeIf { level -> level in 0..100 }?.let { level -> " · $level%" }.orEmpty()
                 Text("$linked · $hinge$battery$charge", color = Muted)
-                it.firmwareInfo?.takeIf { version -> version.isNotBlank() }?.let { version -> Text("Firmware $version", color = Muted) }
+                it.firmwareInfo?.takeIf { version -> version.isNotBlank() }?.let { version -> Text(stringResource(R.string.firmware, version), color = Muted) }
             }
         }
-        if (device.isFirmwareUpdateRequired) TextButton(onClick = { glasses.openFirmwareUpdate(activity) }) { Text("Actualizar firmware") }
+        if (device.isFirmwareUpdateRequired) TextButton(onClick = { glasses.openFirmwareUpdate(activity) }) { Text(stringResource(R.string.actualizar_firmware)) }
     }
-    ActionTile(Icons.Outlined.Tune, "Ajustes avanzados de vídeo", "Calidad, fotogramas y orientación") { advancedCamera = !advancedCamera }
+    ActionTile(Icons.Outlined.Tune, stringResource(R.string.ajustes_avanzados_de_video), stringResource(R.string.calidad_fotogramas_y_orientacion)) { advancedCamera = !advancedCamera }
     if (advancedCamera) Block {
-        val qualities = linkedMapOf("Fluida · Automática" to "FLUIDA", "Baja" to "BAJA", "Media" to "MEDIA", "Alta" to "ALTA")
-        Choice("Calidad de las gafas", qualities.entries.firstOrNull { it.value == quality }?.key ?: qualities.keys.first(), qualities.keys.toList()) {
+        val qualities = linkedMapOf(stringResource(R.string.fluida_automatica) to "FLUIDA", stringResource(R.string.baja) to "BAJA", stringResource(R.string.media) to "MEDIA", stringResource(R.string.alta) to "ALTA")
+        Choice(stringResource(R.string.calidad_de_las_gafas), qualities.entries.firstOrNull { it.value == quality }?.key ?: qualities.keys.first(), qualities.keys.toList()) {
             quality = qualities.getValue(it); prefs.quality = quality
         }
-        if (quality != "FLUIDA") Choice("Fotogramas por segundo", "$fps", listOf("15", "24", "30")) { fps = it.toInt(); prefs.fps = fps }
-        else Text("Parte de 24 FPS y baja a 15 FPS si se acumula retardo, mientras no estés grabando.", color = Muted)
-        SwitchRow("Emisión en horizontal (16:9)", landscape) { landscape = it; prefs.landscape = it }
-        Text("Reabre la cámara para aplicar cambios de calidad o fotogramas.", color = Muted)
+        if (quality != "FLUIDA") Choice(stringResource(R.string.fotogramas_por_segundo), "$fps", listOf("15", "24", "30")) { fps = it.toInt(); prefs.fps = fps }
+        else Text(stringResource(R.string.parte_de_fps_y_baja), color = Muted)
+        SwitchRow(stringResource(R.string.emision_en_horizontal), landscape) { landscape = it; prefs.landscape = it }
+        Text(stringResource(R.string.reabre_la_camara_para_aplicar), color = Muted)
     }
-    ActionTile(Icons.Outlined.MonitorHeart, "Estado del sistema", "Permisos, Bluetooth y batería") { system = !system }
+    ActionTile(Icons.Outlined.MonitorHeart, stringResource(R.string.estado_del_sistema), stringResource(R.string.permisos_bluetooth_y_bateria)) { system = !system }
     if (system) Block {
         fun allowed(permission: String) = activity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
         val power = activity.getSystemService(PowerManager::class.java)
-        Text("Dispositivos cercanos · ${if (allowed(Manifest.permission.BLUETOOTH_CONNECT)) "Permitido" else "Pendiente"}")
-        Text("Micrófono · ${if (allowed(Manifest.permission.RECORD_AUDIO)) "Permitido" else "Pendiente"}")
-        Text("Ubicación · ${if (allowed(Manifest.permission.ACCESS_COARSE_LOCATION)) "Permitida" else "Pendiente"}")
-        Text("Batería · ${if (power.isIgnoringBatteryOptimizations(activity.packageName)) "Sin optimización" else "Optimización activa"}")
-        TextButton(onClick = { activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}"))) }) { Text("Permisos y batería en Android") }
+        Text(stringResource(R.string.dispositivos_cercanos_2, if (allowed(Manifest.permission.BLUETOOTH_CONNECT)) stringResource(R.string.permitido) else stringResource(R.string.pendiente)))
+        Text(stringResource(R.string.microfono_2, if (allowed(Manifest.permission.RECORD_AUDIO)) stringResource(R.string.permitido) else stringResource(R.string.pendiente)))
+        Text(stringResource(R.string.ubicacion, if (allowed(Manifest.permission.ACCESS_COARSE_LOCATION)) stringResource(R.string.permitida) else stringResource(R.string.pendiente)))
+        Text(stringResource(R.string.bateria, if (power.isIgnoringBatteryOptimizations(activity.packageName)) stringResource(R.string.sin_optimizacion) else stringResource(R.string.optimizacion_activa)))
+        TextButton(onClick = { activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}"))) }) { Text(stringResource(R.string.permisos_y_bateria_en_android)) }
     }
-    Section("Inteligencia artificial")
+    Section(stringResource(R.string.inteligencia_artificial))
     Block {
-        Choice("Plataforma de IA", provider.label, Provider.entries.map { it.label }) { name -> provider = Provider.entries.first { it.label == name } }
-        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("Modelo de ${provider.label}") }, singleLine = true)
-        OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth(), label = { Text("Clave API de ${provider.label}") },
-            placeholder = { Text(if (provider == state.provider && state.hasKey) "Clave guardada" else "Pega tu clave") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+        Choice(stringResource(R.string.plataforma_de_ia), provider.label, Provider.entries.map { it.label }) { name -> provider = Provider.entries.first { it.label == name } }
+        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.modelo_de, provider.label)) }, singleLine = true)
+        OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.clave_api_de, provider.label)) },
+            placeholder = { Text(if (provider == state.provider && state.hasKey) stringResource(R.string.clave_guardada) else stringResource(R.string.pega_tu_clave)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
         if (provider == Provider.QWEN) {
-            OutlinedTextField(workspace, { workspace = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("ID del espacio de Alibaba") })
-            Choice("Región del espacio", if (china) "China (Pekín)" else "Singapur", listOf("Singapur", "China (Pekín)")) { china = it != "Singapur" }
+            OutlinedTextField(workspace, { workspace = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.id_del_espacio_de_alibaba)) })
+            val regionSingapore = stringResource(R.string.region_singapore)
+            val regionChina = stringResource(R.string.china_pekin)
+            Choice(stringResource(R.string.region_del_espacio), if (china) regionChina else regionSingapore,
+                listOf(regionSingapore, regionChina)) { china = it == regionChina }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(enabled = !state.busy, onClick = {
                 if (providerToConfigure == provider && key.isNotBlank()) ai.saveKey(provider, key)
                 else ai.configure(provider, key, model, workspace, china)
                 key = ""
-            }) { Text("Guardar") }
-            OutlinedButton(enabled = !state.busy && state.hasKey && provider == state.provider && key.isBlank() && model == ai.configuredModel(provider), onClick = ai::checkConnection) { Text("Probar conexión") }
+            }) { Text(stringResource(R.string.guardar)) }
+            OutlinedButton(enabled = !state.busy && state.hasKey && provider == state.provider && key.isBlank() && model == ai.configuredModel(provider), onClick = ai::checkConnection) { Text(stringResource(R.string.probar_conexion)) }
         }
-        if (state.hasKey && state.provider == provider) TextButton(enabled = !state.busy, onClick = { ai.forgetKey(provider); key = "" }) { Text("Eliminar clave guardada") }
+        if (state.hasKey && state.provider == provider) TextButton(enabled = !state.busy, onClick = { ai.forgetKey(provider); key = "" }) { Text(stringResource(R.string.eliminar_clave_guardada)) }
     }
-    ActionTile(Icons.Outlined.RecordVoiceOver, "Ajustes avanzados de IA", "Lectura de respuestas, velocidad y tono") { advancedAi = !advancedAi }
+    ActionTile(Icons.Outlined.RecordVoiceOver, stringResource(R.string.ajustes_avanzados_de_ia), stringResource(R.string.lectura_de_respuestas_velocidad_y)) { advancedAi = !advancedAi }
     if (advancedAi) Block {
-        SwitchRow("Leer respuestas en voz alta", speaks, change = setSpeaks)
-        Text("Velocidad de voz · ${"%.1f".format(rate)}×")
+        SwitchRow(stringResource(R.string.leer_respuestas_en_voz_alta), speaks, change = setSpeaks)
+        Text(stringResource(R.string.velocidad_de_voz, "%.1f".format(rate)))
         Slider(value = rate, valueRange = .6f..1.5f, onValueChange = { rate = it; prefs.voiceRate = it })
-        Text("Tono de voz")
+        Text(stringResource(R.string.tono_de_voz))
         Slider(value = pitch, valueRange = .65f..1.35f, onValueChange = { pitch = it; prefs.pitch = it })
     }
-    Section("Emisión en directo")
+    Section(stringResource(R.string.emision_en_directo_2))
     Block {
         PlatformChoice(platform) { platform = it }
-        OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("URL de emisión") }, placeholder = { Text("rtmps://servidor/aplicación") }, singleLine = true)
-        OutlinedTextField(streamKey, { streamKey = it }, Modifier.fillMaxWidth(), label = { Text("Clave de emisión") },
-            placeholder = { Text(if (prefs.secret(platform)) "Clave guardada" else "La proporciona tu plataforma") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-        Text("Copia la URL y la clave del panel de emisión de tu plataforma.", color = Muted)
+        OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.url_de_emision)) }, placeholder = { Text("rtmps://example.com/live") }, singleLine = true)
+        OutlinedTextField(streamKey, { streamKey = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.clave_de_emision)) },
+            placeholder = { Text(if (prefs.secret(platform)) stringResource(R.string.clave_guardada) else stringResource(R.string.la_proporciona_tu_plataforma)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+        Text(stringResource(R.string.copia_la_url_y_la), color = Muted)
         Button(onClick = {
             val result = runCatching {
                 val parsed = java.net.URI(url.trim())
                 require(parsed.scheme in setOf("rtmp", "rtmps") && !parsed.host.isNullOrBlank() && parsed.userInfo == null && parsed.fragment == null && parsed.query == null)
                 prefs.saveDestination(platform, url, streamKey)
             }
-            result.onSuccess { streamKey = ""; notify("Destino guardado.") }.onFailure { notify("Introduce una URL RTMP o RTMPS válida y pon la clave en su campo.") }
-        }) { Text("Guardar destino") }
+            result.onSuccess { streamKey = ""; notify(activity.getString(R.string.destino_guardado)) }.onFailure { notify(activity.getString(R.string.introduce_una_url_rtmp_o)) }
+        }) { Text(stringResource(R.string.guardar_destino)) }
     }
-    ActionTile(Icons.Outlined.Tune, "Estudio de emisión", "Fotogramas y salida de audio") { streamingStudio = !streamingStudio }
+    ActionTile(Icons.Outlined.Tune, stringResource(R.string.estudio_de_emision), stringResource(R.string.fotogramas_y_salida_de_audio)) { streamingStudio = !streamingStudio }
     if (streamingStudio) Block {
-        Choice("Fotogramas del directo", "$streamFps", listOf("15", "24", "30")) { streamFps = it.toInt(); prefs.streamFps = streamFps }
-        Choice("Salida de audio del móvil", streamAudio, listOf("Automática", "Altavoz del móvil", "Bluetooth")) { streamAudio = it; prefs.streamAudio = it }
-        TextButton(onClick = { streamFps = 24; prefs.streamFps = 24; streamAudio = "Automática"; prefs.streamAudio = streamAudio }) { Text("Restablecer valores") }
+        Choice(stringResource(R.string.fotogramas_del_directo), "$streamFps", listOf("15", "24", "30")) { streamFps = it.toInt(); prefs.streamFps = streamFps }
+        val routes = mapOf(
+            "Automática" to stringResource(R.string.route_auto),
+            "Altavoz del móvil" to stringResource(R.string.route_phone),
+            "Bluetooth" to "Bluetooth"
+        )
+        Choice(stringResource(R.string.salida_de_audio_del_movil), streamAudio, routes.keys.toList(), display = { routes.getValue(it) }) {
+            streamAudio = it
+            prefs.streamAudio = it
+        }
+        TextButton(onClick = { streamFps = 24; prefs.streamFps = 24; streamAudio = "Automática"; prefs.streamAudio = streamAudio }) { Text(stringResource(R.string.restablecer_valores)) }
     }
-    Section("Acerca de")
-    Text("MetaLima Ai · 0.3.0", color = Muted)
+    Section(stringResource(R.string.acerca_de))
+    Text("MetaLima Ai · 0.4.0", color = Muted)
 }
 
-@Composable internal fun Choice(label: String, selected: String, items: List<String>, select: (String) -> Unit) {
+@Composable internal fun Choice(label: String, selected: String, items: List<String>,
+    display: @Composable (String) -> String = { it }, select: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(label, color = Muted)
         Box {
             OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { expanded = true }) {
-                Text(selected, Modifier.weight(1f)); Icon(Icons.Outlined.KeyboardArrowDown, "Ver opciones")
+                Text(display(selected), Modifier.weight(1f)); Icon(Icons.Outlined.KeyboardArrowDown, stringResource(R.string.ver_opciones))
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                items.forEach { item -> DropdownMenuItem(text = { Text(item) }, onClick = { expanded = false; select(item) }) }
+                items.forEach { item -> DropdownMenuItem(text = { Text(display(item)) }, onClick = { expanded = false; select(item) }) }
             }
         }
     }

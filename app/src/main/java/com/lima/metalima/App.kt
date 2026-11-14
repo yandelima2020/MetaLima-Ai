@@ -1,5 +1,6 @@
 package com.lima.metalima
 
+import androidx.compose.ui.res.stringResource
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
@@ -53,6 +54,7 @@ import com.lima.metalima.livemode.LivePhase
 import com.lima.metalima.livemode.LiveAudio
 import com.lima.metalima.livemode.LiveSocket
 import com.lima.metalima.livemode.Translation
+import com.lima.metalima.livemode.displayLabel
 import com.lima.metalima.wearables.WearablesViewModel
 import java.net.URI
 import java.text.DateFormat
@@ -67,11 +69,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
-
 @Composable internal fun MetaLimaApp(activity: MainActivity, glasses: WearablesViewModel, camera: CameraViewModel, assistant: AssistantViewModel,
     conversation: LiveConversationViewModel) {
     val prefs = remember { StudioPrefs(activity) }
+    val describeImage = stringResource(R.string.describe_image)
     var skin by remember { mutableStateOf(prefs.skin) }
     var language by remember { mutableStateOf(prefs.language) }
     SideEffect {
@@ -185,7 +186,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
     }
     fun prepareSpeaker(voiceLanguage: AppLanguage = language) {
         check(voiceReady && speaker.setLanguage(voiceLanguage.locale) >= TextToSpeech.LANG_AVAILABLE) {
-            "Activa una voz para ${voiceLanguage.label} en los ajustes de síntesis de voz de Android."
+            activity.getString(R.string.activa_una_voz_para_en, voiceLanguage.label)
         }
         speaker.setSpeechRate(prefs.voiceRate)
         speaker.setPitch(prefs.pitch)
@@ -198,9 +199,9 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                 runCatching {
                     prepareSpeaker(voiceLanguage)
                     check(speaker.speak(it.take(3900), TextToSpeech.QUEUE_FLUSH, null, "answer") == TextToSpeech.SUCCESS) {
-                        "No se pudo leer la respuesta. Está disponible en la conversación."
+                        activity.getString(R.string.no_se_pudo_leer_la_3)
                     }
-                }.onFailure { error -> notify(error.message ?: "No se pudo leer la respuesta.") }
+                }.onFailure { error -> notify(error.message ?: activity.getString(R.string.no_se_pudo_leer_la_2)) }
             }
         }
     }
@@ -214,9 +215,9 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IllegalStateException) {
-                notify(error.message ?: "No se pudo reproducir la respuesta en las gafas.")
+                notify(error.message ?: activity.getString(R.string.no_se_pudo_reproducir_la_2))
             } catch (_: Exception) {
-                notify("No se pudo reproducir la respuesta en las gafas. Puedes leerla en la conversación.")
+                notify(activity.getString(R.string.no_se_pudo_reproducir_la))
             } finally {
                 speaking = false
             }
@@ -229,7 +230,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         speaker.stop()
         voiceJob = scope.launch {
             try {
-                check(activity.requestMicrophone()) { "Permite el micrófono de MetaLima Ai para hablar con las gafas." }
+                check(activity.requestMicrophone()) { activity.getString(R.string.permite_el_microfono_de_metalima) }
                 if (!activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || page != "ai") return@launch
                 val headset = glassesVoice.selectHeadset(hardware.deviceDetails.values.map { it.name })
                 val photo = image
@@ -240,16 +241,16 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                     lastVoiceAnswer = answer
                     if (photo != null && image === photo) {
                         image = null
-                        if (draft == DESCRIBE_IMAGE) draft = ""
+                        if (draft == describeImage) draft = ""
                     }
                     if (responseSpoken) speakOnGlasses(answer, headset)
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IllegalStateException) {
-                notify(error.message ?: "No se pudo usar el micrófono de las gafas.")
+                notify(error.message ?: activity.getString(R.string.no_se_pudo_usar_el_2))
             } catch (_: Exception) {
-                notify("No se pudo usar el micrófono de las gafas. Revisa los permisos y la conexión Bluetooth.")
+                notify(activity.getString(R.string.no_se_pudo_usar_el))
             } finally {
                 finishVoice = null
                 listening = false
@@ -257,7 +258,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         }
     }
     val voiceBluetooth = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it && page == "ai") startGlassesTurn() else if (!it) notify("Permite Dispositivos cercanos para usar el micrófono Bluetooth.")
+        if (it && page == "ai") startGlassesTurn() else if (!it) notify(activity.getString(R.string.permite_dispositivos_cercanos_para_usar_2))
     }
     LaunchedEffect(page) {
         if (page != "ai") {
@@ -269,7 +270,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         if (!isLivePage || conversation.state.value.active || capture.isRecording || live.active) return
         scope.launch {
             if (!activity.requestMicrophone()) {
-                notify("Permite el micrófono para usar la conversación en directo.")
+                notify(activity.getString(R.string.permite_el_microfono_para_usar_2))
                 return@launch
             }
             if (page !in listOf("conversation-live", "translation") || !activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return@launch
@@ -280,28 +281,28 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                 liveOnPhone, assistant::saveLiveTurn, language, translation,
                 if (model.supportsVisionTools && translation == null) studioLiveTools else emptyList()) { name, args ->
                 if (name == "ver_gafas") {
-                    check(liveVision) { "Activa Visión en la pantalla de la conversación primero." }
+                    check(liveVision) { activity.getString(R.string.activa_vision_en_la_pantalla) }
                     val bitmap = withTimeoutOrNull(6000) { camera.takeSnapshot() }
-                        ?: error("Las gafas tardaron demasiado en entregar la foto.")
+                        ?: error(activity.getString(R.string.las_gafas_tardaron_demasiado_en))
                     val jpeg = withContext(Dispatchers.Default) { try { jpegBase64(bitmap, 1024) } finally { bitmap.recycle() } }
                     liveActionResult("Foto de las gafas tomada ahora.", jpeg)
                 } else {
                     val text = args.optString("texto").trim()
-                    require(text.isNotBlank()) { "No se recibió ningún texto para guardar." }
+                    require(text.isNotBlank()) { activity.getString(R.string.no_se_recibio_ningun_texto) }
                     val jpeg = if (args.optBoolean("adjuntar_foto")) {
-                        check(liveVision) { "Activa Visión para guardar una nota con foto." }
-                        val bitmap = withTimeoutOrNull(6000) { camera.takeSnapshot() } ?: error("No se pudo obtener la foto.")
+                        check(liveVision) { activity.getString(R.string.activa_vision_para_guardar_una) }
+                        val bitmap = withTimeoutOrNull(6000) { camera.takeSnapshot() } ?: error(activity.getString(R.string.no_se_pudo_obtener_la))
                         withContext(Dispatchers.Default) { try { jpegBase64(bitmap, 1280) } finally { bitmap.recycle() } }
                     } else null
                     noteStore.save(text, jpeg)
-                    notify("Nota guardada.")
+                    notify(activity.getString(R.string.nota_guardada))
                     liveActionResult("Nota guardada${if (jpeg != null) " con foto" else ""}.")
                 }
             }
         }
     }
     val liveBluetooth = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it) startLiveConversation() else notify("Permite Dispositivos cercanos para usar las gafas.")
+        if (it) startLiveConversation() else notify(activity.getString(R.string.permite_dispositivos_cercanos_para_usar))
     }
     LaunchedEffect(liveVision, capture.isSessionActive, capture.hasStream, capture.needsGlassesAppUpdate) {
         if (liveVision && capture.isSessionActive && !liveRequestedCamera && !capture.needsGlassesAppUpdate) {
@@ -330,7 +331,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         message?.let(::notify)
         if (question == null) return@VoiceCommand
         if (markingVoice) {
-            notify(if (camera.markRecording()) "Momento marcado." else "Espera al primer fotograma o revisa el límite de 30 marcas.")
+            notify(if (camera.markRecording()) activity.getString(R.string.momento_marcado) else activity.getString(R.string.espera_al_primer_fotograma_o))
             return@VoiceCommand
         }
         go("ai")
@@ -346,7 +347,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         val selectedPage = page
         scope.launch {
             try {
-                if (!activity.requestMicrophone()) notify("Permite el micrófono para usar los comandos de voz.")
+                if (!activity.requestMicrophone()) notify(activity.getString(R.string.permite_el_microfono_para_usar))
                 else if (page == selectedPage && activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                     speaker.stop()
                     if (mark && camera.uiState.value.let { it.isRecording && !it.includeAudioInStream }) creatorVoice = true
@@ -364,27 +365,27 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         dictating = true
         runCatching {
             noteDictation.launch(dictationRequest(language))
-        }.onFailure { dictating = false; notify("Android no ofrece un servicio de dictado compatible.") }
+        }.onFailure { dictating = false; notify(activity.getString(R.string.android_no_ofrece_un_servicio)) }
     }
     fun runAudioTest() {
         if (audioTesting) return
-        if (capture.isRecording || live.active) { notify("Detén la grabación o emisión antes de probar el sonido."); return }
+        if (capture.isRecording || live.active) { notify(activity.getString(R.string.deten_la_grabacion_o_emision)); return }
         audioTesting = true
         audioTest = scope.launch {
             val audio = LiveAudio(activity, 16_000)
             audioResult = null
             try {
-                check(activity.requestMicrophone()) { "Permite el micrófono para realizar la prueba." }
+                check(activity.requestMicrophone()) { activity.getString(R.string.permite_el_microfono_para_realizar) }
                 check(activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
-                    "Vincula las gafas o concede Dispositivos cercanos en Ajustes."
+                    activity.getString(R.string.vincula_las_gafas_o_concede)
                 }
                 val route = audio.open(hardware.deviceDetails.values.map { it.name }, false)
-                audioResult = "Habla ahora. Después sonará un tono breve."
+                audioResult = activity.getString(R.string.habla_ahora_despues_sonara_un)
                 val signal = audio.testSignal()
-                audioResult = "${if (signal) "Se detectó señal del micrófono." else "No se detectó voz suficiente."} Salida: $route. Confirma si oíste el tono en las gafas."
+                audioResult = activity.getString(R.string.salida_confirma_si_oiste_el, if (signal) activity.getString(R.string.se_detecto_senal_del_microfono) else activity.getString(R.string.no_se_detecto_voz_suficiente), route)
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Exception) { audioResult = error.message ?: "No se pudo probar el audio." }
+            } catch (error: Exception) { audioResult = error.message ?: activity.getString(R.string.no_se_pudo_probar_el) }
             finally {
                 withContext(NonCancellable + Dispatchers.IO) { audio.close() }
                 audioTesting = false
@@ -398,13 +399,13 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
             apiResult = null
             try {
                 val started = android.os.SystemClock.elapsedRealtime()
-                val socket = LiveSocket(assistant.liveKey(liveModel.provider), liveModel, null, language)
+                val socket = LiveSocket(activity.applicationContext, assistant.liveKey(liveModel.provider), liveModel, null, language)
                 try {
-                    check(withTimeoutOrNull(12_000) { socket.ready.await(); true } == true) { "El modelo no respondió a tiempo." }
-                    apiResult = "Sesión aceptada en ${android.os.SystemClock.elapsedRealtime() - started} ms."
+                    check(withTimeoutOrNull(12_000) { socket.ready.await(); true } == true) { activity.getString(R.string.el_modelo_no_respondio_a) }
+                    apiResult = activity.getString(R.string.sesion_aceptada_en_ms, android.os.SystemClock.elapsedRealtime() - started)
                 } finally { socket.close() }
             } catch (error: CancellationException) { throw error }
-            catch (error: Exception) { apiResult = error.message ?: "No se pudo conectar." }
+            catch (error: Exception) { apiResult = error.message ?: activity.getString(R.string.no_se_pudo_conectar) }
             finally { apiTesting = false }
         }
     }
@@ -432,14 +433,14 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                     decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
                 }
             }.getOrNull() }
-            if (loaded == null) notify("No se pudo abrir la imagen.")
+            if (loaded == null) notify(activity.getString(R.string.no_se_pudo_abrir_la))
             else if (destination == "notes") {
                 noteAttachment = withContext(Dispatchers.Default) { try { jpegBase64(loaded) } finally { loaded.recycle() } }
             } else if (destination == "vision-translate") {
                 image = loaded
             } else {
                 image = loaded
-                if (draft.isBlank()) draft = DESCRIBE_IMAGE
+                if (draft.isBlank()) draft = describeImage
             }
         }
     }
@@ -455,7 +456,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                     .putExtra("endpoint", endpoint).putExtra("record", record).putExtra("audio", audio).putExtra("landscape", prefs.landscape).putExtra("fps", if (record) prefs.fps else prefs.streamFps).putExtra("route", if (record) "Automática" else prefs.streamAudio))
                 go("cast")
                 fullscreen = true
-            }.onFailure { notify("No se pudo iniciar el servicio de emisión.") }
+            }.onFailure { notify(activity.getString(R.string.no_se_pudo_iniciar_el)) }
         }
     }
     fun startStream() {
@@ -464,24 +465,24 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
             val url = URI(endpoint)
             require(url.scheme in listOf("rtmp", "rtmps") && !url.host.isNullOrBlank() && prefs.secret(prefs.platform))
             scope.launch {
-                if (audio && !activity.requestMicrophone()) { notify("Permite el micrófono o desactiva el audio del directo."); return@launch }
+                if (audio && !activity.requestMicrophone()) { notify(activity.getString(R.string.permite_el_microfono_o_desactiva_2)); return@launch }
                 outgoingUrl = endpoint
                 val manager = activity.getSystemService(MediaProjectionManager::class.java)
                 runCatching { screenShare.launch(manager.createScreenCaptureIntent()) }.onFailure {
                     outgoingUrl = null
-                    notify("No se pudo solicitar el permiso de pantalla.")
+                    notify(activity.getString(R.string.no_se_pudo_solicitar_el))
                 }
             }
-        }.onFailure { notify("Guarda una dirección RTMP o RTMPS y una clave de emisión en Ajustes.") }
+        }.onFailure { notify(activity.getString(R.string.guarda_una_direccion_rtmp_o)) }
     }
     fun startInteractiveRecording() {
         val manager = activity.getSystemService(MediaProjectionManager::class.java)
         scope.launch {
-            if (audio && !activity.requestMicrophone()) { notify("Permite el micrófono o desactiva el audio."); return@launch }
+            if (audio && !activity.requestMicrophone()) { notify(activity.getString(R.string.permite_el_microfono_o_desactiva)); return@launch }
             pendingRecording = true
             runCatching { screenShare.launch(manager.createScreenCaptureIntent()) }.onFailure {
                 pendingRecording = false
-                notify("No se pudo solicitar el permiso de pantalla.")
+                notify(activity.getString(R.string.no_se_pudo_solicitar_el))
             }
         }
     }
@@ -491,7 +492,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
             val providers = manager.getProviders(true)
             val fix = providers.mapNotNull { manager.getLastKnownLocation(it) }.maxByOrNull { it.time }
             fun update(value: android.location.Location?) {
-                if (value == null) notify("No se encontró la ubicación. Comprueba que esté activada en Android.")
+                if (value == null) notify(activity.getString(R.string.no_se_encontro_la_ubicacion))
                 else location = String.format(Locale.US, "%.5f,%.5f", value.latitude, value.longitude)
             }
             if (fix != null && System.currentTimeMillis() - fix.time < 120_000) update(fix)
@@ -501,9 +502,9 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                 if (source == null) update(fix)
                 else manager.getCurrentLocation(source, null, activity.mainExecutor) { update(it ?: fix) }
             }
-        }.onFailure { notify("No se pudo leer la ubicación del móvil.") }
+        }.onFailure { notify(activity.getString(R.string.no_se_pudo_leer_la)) }
     }
-    val gps = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) readLocation() else notify("Permiso de ubicación denegado.") }
+    val gps = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { if (it) readLocation() else notify(activity.getString(R.string.permiso_de_ubicacion_denegado)) }
     LaunchedEffect(hardware.recentError?.id) { hardware.recentError?.let { snack.showSnackbar(it.message); glasses.clearRecentError(it.id) } }
     LaunchedEffect(ai.notice) { ai.notice?.let { snack.showSnackbar(it) } }
     LaunchedEffect(capture.hasStream) { if (!capture.hasStream) renderedPreview = null }
@@ -516,22 +517,23 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         topBar = {
             if (!fullscreen) Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 9.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                if (page.isNotEmpty()) IconButton(onClick = ::finishPage) { Icon(Icons.Outlined.ArrowBack, "Volver") }
+                if (page.isNotEmpty()) IconButton(onClick = ::finishPage) { Icon(Icons.Outlined.ArrowBack, stringResource(R.string.volver)) }
                 else Box(Modifier.size(38.dp).background(Color(0xFF111A20), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
                     Image(androidx.compose.ui.res.painterResource(R.drawable.ic_metalima_foreground), null, Modifier.fillMaxSize())
                 }
                 Spacer(Modifier.width(10.dp))
                 Text("MetaLima Ai", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                IconButton(onClick = { help = true }) { Icon(Icons.Outlined.HelpOutline, "Ayuda", tint = Muted) }
+                IconButton(onClick = { help = true }) { Icon(Icons.Outlined.HelpOutline, stringResource(R.string.ayuda), tint = Muted) }
             }
         },
         bottomBar = {
             if (page.isEmpty()) NavigationBar(containerColor = SurfaceTone) {
-                listOf("Inicio" to Icons.Outlined.Home, "Historial" to Icons.Outlined.History,
-                    "Laboratorio" to Icons.Outlined.Science, "Ajustes" to Icons.Outlined.Settings,
-                    "Donaciones" to Icons.Outlined.FavoriteBorder).forEachIndexed { index, item ->
+                listOf(stringResource(R.string.inicio) to Icons.Outlined.Home, stringResource(R.string.historial) to Icons.Outlined.History,
+                    stringResource(R.string.laboratorio) to Icons.Outlined.Science, stringResource(R.string.ajustes) to Icons.Outlined.Settings,
+                    stringResource(R.string.donaciones) to Icons.Outlined.FavoriteBorder).forEachIndexed { index, item ->
                     NavigationBarItem(selected = index == tab, onClick = { liveProviderToConfigure = null; tab = index }, icon = { Icon(item.second, null) },
-                        label = { Text(item.first, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        label = { Text(item.first, style = MaterialTheme.typography.labelSmall, maxLines = 2,
+                            overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
                         colors = NavigationBarItemDefaults.colors(indicatorColor = Lime,
                             selectedIconColor = MaterialTheme.colorScheme.onPrimary, selectedTextColor = Lime))
                 }
@@ -542,9 +544,9 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
             Box(Modifier.fillMaxSize().background(Ink)) {
                 Viewfinder(capture.isStreaming, capture.hasStream, surface = camera::setSurface,
                     modifier = Modifier.fillMaxSize(), hud = quickOverlay, reaction = reaction, filter = filter)
-                if (!live.active) IconButton(onClick = { fullscreen = false }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding()) { Icon(Icons.Outlined.Close, "Salir de pantalla completa") }
+                if (!live.active) IconButton(onClick = { fullscreen = false }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding()) { Icon(Icons.Outlined.Close, stringResource(R.string.salir_de_pantalla_completa)) }
                 else TextButton(onClick = ::finishPage,
-                    modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()) { Text(if (live.recording) "Detener grabación" else "Detener directo") }
+                    modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()) { Text(if (live.recording) stringResource(R.string.detener_grabacion) else stringResource(R.string.detener_directo)) }
             }
         } else if (isLivePage) {
             Box(Modifier.fillMaxSize().padding(padding)) {
@@ -565,8 +567,8 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                     language = language,
                     enableVision = if (canSee) ({
                         if (liveVision) disableLiveVision()
-                        else if (capture.needsGlassesAppUpdate) notify("Revisa Conexiones de aplicaciones en Meta AI desde Diagnóstico.")
-                        else if (!hardware.hasActiveDevice) notify("Conecta las gafas en Meta AI para usar Visión.")
+                        else if (capture.needsGlassesAppUpdate) notify(activity.getString(R.string.revisa_conexiones_de_aplicaciones_en))
+                        else if (!hardware.hasActiveDevice) notify(activity.getString(R.string.conecta_las_gafas_en_meta))
                         else {
                             liveVision = true
                             if (!capture.hasSession) camera.startSession()
@@ -575,12 +577,12 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                     takeFrame = if (canSee && liveVision && capture.isStreaming && conversationState.phase == LivePhase.LISTENING) ({
                         scope.launch {
                             try {
-                                val bitmap = withTimeoutOrNull(6000) { camera.takeSnapshot() } ?: error("La foto no llegó a tiempo.")
+                                val bitmap = withTimeoutOrNull(6000) { camera.takeSnapshot() } ?: error(activity.getString(R.string.la_foto_no_llego_a))
                                 val jpeg = withContext(Dispatchers.Default) { try { jpegBase64(bitmap, 1024) } finally { bitmap.recycle() } }
-                                check(conversation.sendFrame(jpeg)) { "Gemini Live aún no está conectado. Inténtalo de nuevo." }
-                                notify("Imagen enviada. Haz tu pregunta por voz.")
+                                check(conversation.sendFrame(jpeg)) { activity.getString(R.string.gemini_live_aun_no_esta) }
+                                notify(activity.getString(R.string.imagen_enviada_haz_tu_pregunta))
                             } catch (error: CancellationException) { throw error }
-                            catch (error: Exception) { notify(error.message ?: "No se pudo enviar la imagen.") }
+                            catch (error: Exception) { notify(error.message ?: activity.getString(R.string.no_se_pudo_enviar_la)) }
                         }
                     }) else null,
                     visionBusy = capture.isBusy || capture.isCapturingPhoto,
@@ -599,11 +601,11 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                         audioResult, audioTesting, apiResult, apiTesting,
                         ::runAudioTest, ::runApiTest, { go("camera") }, { glasses.openGlassesAppUpdate(activity) })
                     "vision-translate" -> {
-                        Heading("Traducir una imagen", "Elige una foto de la galería y el idioma de destino.")
-                        Choice("Traducir a", imageLanguage, translationLanguages) { imageLanguage = it }
-                        OutlinedButton(onClick = { photoPicker.launch("image/*") }) { Text("Elegir foto") }
+                        Heading(stringResource(R.string.traducir_una_imagen), stringResource(R.string.elige_una_foto_de_la))
+                        Choice(stringResource(R.string.traducir_a), imageLanguage, translationLanguages, display = { translationLabel(it) }) { imageLanguage = it }
+                        OutlinedButton(onClick = { photoPicker.launch("image/*") }) { Text(stringResource(R.string.elegir_foto)) }
                         image?.let { bitmap ->
-                            Image(bitmap.asImageBitmap(), "Imagen para traducir", Modifier.fillMaxWidth().height(170.dp), contentScale = ContentScale.Fit)
+                            Image(bitmap.asImageBitmap(), stringResource(R.string.imagen_para_traducir), Modifier.fillMaxWidth().height(170.dp), contentScale = ContentScale.Fit)
                             Button(enabled = ai.hasKey && !ai.busy, onClick = {
                                 val request = "Lee el texto de la imagen y tradúcelo a $imageLanguage. Indica qué partes no se pueden leer."
                                 go("ai")
@@ -613,9 +615,9 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                                 submit(request, bitmap, speak = responseSpoken && translatedVoice != null, contextual = false,
                                     voiceLanguage = translatedVoice ?: language, replyLanguage = imageLanguage)
                                 image = null
-                            }) { Text("Traducir") }
+                            }) { Text(stringResource(R.string.traducir)) }
                         }
-                        if (!ai.hasKey) Text("Configura un proveedor de IA compatible con imágenes en Ajustes.", color = Muted)
+                        if (!ai.hasKey) Text(stringResource(R.string.configura_un_proveedor_de_ia), color = Muted)
                     }
                     "notes" -> NotesScreen(noteStore, noteDraft, { noteDraft = it }, ::dictateNote,
                         { photoPicker.launch("image/*") }, noteAttachment, { noteAttachment = null }, savingNote) {
@@ -627,26 +629,26 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                                 noteStore.save(text, attachment)
                                 if (noteDraft == text) noteDraft = ""
                                 if (noteAttachment == attachment) noteAttachment = null
-                                notify("Nota guardada.")
+                                notify(activity.getString(R.string.nota_guardada))
                             } catch (error: CancellationException) { throw error }
-                            catch (error: Exception) { notify(error.message ?: "No se pudo guardar la nota.") }
+                            catch (error: Exception) { notify(error.message ?: activity.getString(R.string.no_se_pudo_guardar_la_2)) }
                             finally { savingNote = false }
                         }
                     }
                     "ai" -> {
-                        Heading("Conversación", "Pregunta por voz, por escrito o con una foto.")
-                        ActionTile(Icons.Outlined.Headphones, "Conversación en directo", liveModel.label) { go("conversation-live") }
+                        Heading(stringResource(R.string.conversacion), stringResource(R.string.pregunta_por_voz_por_escrito))
+                        ActionTile(Icons.Outlined.Headphones, stringResource(R.string.conversacion_en_directo), liveModel.displayLabel()) { go("conversation-live") }
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             AssistChip(onClick = { go("gps") }, label = { Text("GPS") }, leadingIcon = { Icon(Icons.Outlined.LocationOn, null, Modifier.size(16.dp)) })
-                            AssistChip(onClick = { go("vision") }, label = { Text("Visión") }, leadingIcon = { Icon(Icons.Outlined.Visibility, null, Modifier.size(16.dp)) })
+                            AssistChip(onClick = { go("vision") }, label = { Text(stringResource(R.string.vision)) }, leadingIcon = { Icon(Icons.Outlined.Visibility, null, Modifier.size(16.dp)) })
                             AssistChip(onClick = {
                                 val query = draft.ifBlank { ai.turns.lastOrNull()?.user.orEmpty() }
-                                if (query.isBlank()) notify("Escribe una consulta para buscar en la web.")
+                                if (query.isBlank()) notify(activity.getString(R.string.escribe_una_consulta_para_buscar))
                                 else runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}"))) }
-                                    .onFailure { notify("No se pudo abrir el navegador.") }
+                                    .onFailure { notify(activity.getString(R.string.no_se_pudo_abrir_el)) }
                             }, label = { Text("Web") }, leadingIcon = { Icon(Icons.Outlined.Language, null, Modifier.size(16.dp)) })
                         }
-                        if (!ai.hasKey) ActionTile(Icons.Outlined.Key, "Configurar ${ai.provider.label}", "Añade una clave para empezar") { page = ""; tab = 3 }
+                        if (!ai.hasKey) ActionTile(Icons.Outlined.Key, stringResource(R.string.configurar, ai.provider.label), stringResource(R.string.anade_una_clave_para_empezar)) { page = ""; tab = 3 }
                         if (ai.provider == Provider.GEMINI && ai.hasKey) Block {
                             val recording = finishVoice
                             Button(
@@ -664,55 +666,55 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                                 Icon(Icons.Outlined.Headphones, null, Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
                                 Text(when {
-                                    listening -> "Enviar audio"
-                                    recording != null && recording.isCompleted -> "Procesando audio…"
-                                    recording != null -> "Conectando micrófono…"
-                                    ai.busy -> "Consultando Gemini…"
-                                    speaking -> "Reproduciendo respuesta…"
-                                    else -> "Hablar con las gafas"
+                                    listening -> stringResource(R.string.enviar_audio)
+                                    recording != null && recording.isCompleted -> stringResource(R.string.procesando_audio)
+                                    recording != null -> stringResource(R.string.conectando_microfono)
+                                    ai.busy -> stringResource(R.string.consultando_gemini)
+                                    speaking -> stringResource(R.string.reproduciendo_respuesta)
+                                    else -> stringResource(R.string.hablar_con_las_gafas)
                                 })
                             }
-                            Text(if (listening) "Escuchando. Haz tu pregunta." else "Pulsa y habla cuando el micrófono esté listo. El turno se envía en un máximo de 12 segundos.", color = Muted)
-                            if (recording != null) TextButton(onClick = { voiceJob?.cancel() }) { Text("Cancelar audio") }
+                            Text(if (listening) stringResource(R.string.escuchando_haz_tu_pregunta) else stringResource(R.string.pulsa_y_habla_cuando_el), color = Muted)
+                            if (recording != null) TextButton(onClick = { voiceJob?.cancel() }) { Text(stringResource(R.string.cancelar_audio)) }
                             lastVoiceAnswer?.takeIf { it == ai.turns.lastOrNull { turn -> turn.session == ai.session }?.answer }?.let { answer ->
                                 TextButton(enabled = !speaking && recording == null && !ai.busy, onClick = {
                                     runCatching { glassesVoice.selectHeadset(hardware.deviceDetails.values.map { it.name }) }
                                         .onSuccess { speakOnGlasses(answer, it) }
-                                        .onFailure { notify(it.message ?: "No se encontró la salida Bluetooth.") }
-                                }) { Text("Repetir respuesta en las gafas") }
+                                        .onFailure { notify(it.message ?: activity.getString(R.string.no_se_encontro_la_salida)) }
+                                }) { Text(stringResource(R.string.repetir_respuesta_en_las_gafas)) }
                             }
                         }
                         val canType = finishVoice == null && !speaking
-                        TextButton(enabled = !ai.busy && canType, onClick = { assistant.newSession(); draft = ""; image = null }) { Text("Nueva conversación") }
+                        TextButton(enabled = !ai.busy && canType, onClick = { assistant.newSession(); draft = ""; image = null }) { Text(stringResource(R.string.nueva_conversacion)) }
                         ai.turns.filter { it.session == ai.session }.takeLast(6).forEach { Msg(it) }
                         image?.let { attached ->
-                            Image(attached.asImageBitmap(), "Imagen adjunta", Modifier.fillMaxWidth().height(160.dp).clip(Panel), contentScale = ContentScale.Fit)
-                            TextButton(enabled = canType, onClick = { image = null }) { Text("Quitar foto") }
+                            Image(attached.asImageBitmap(), stringResource(R.string.imagen_adjunta), Modifier.fillMaxWidth().height(160.dp).clip(Panel), contentScale = ContentScale.Fit)
+                            TextButton(enabled = canType, onClick = { image = null }) { Text(stringResource(R.string.quitar_foto)) }
                         }
-                        OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text("Escribe tu pregunta") }, maxLines = 5)
+                        OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.escribe_tu_pregunta)) }, maxLines = 5)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(enabled = canType, onClick = { photoPicker.launch("image/*") }) { Icon(Icons.Outlined.AttachFile, "Adjuntar imagen") }
+                            IconButton(enabled = canType, onClick = { photoPicker.launch("image/*") }) { Icon(Icons.Outlined.AttachFile, stringResource(R.string.adjuntar_imagen)) }
                             IconButton(enabled = canType && !ai.busy, onClick = { dictating = true; runCatching { dictation.launch(dictationRequest(language)) }
-                                .onFailure { dictating = false; notify("Android no dispone de un servicio de dictado compatible.") } }) { Icon(Icons.Outlined.Mic, "Dictar pregunta") }
+                                .onFailure { dictating = false; notify(activity.getString(R.string.android_no_dispone_de_un)) } }) { Icon(Icons.Outlined.Mic, activity.getString(R.string.dictar_pregunta)) }
                             Spacer(Modifier.weight(1f))
-                            Button(onClick = { submit(draft, image); draft = ""; image = null }, enabled = canType && ai.hasKey && !ai.busy && draft.isNotBlank()) { Text(if (ai.busy) "Enviando…" else "Enviar") }
+                            Button(onClick = { submit(draft, image); draft = ""; image = null }, enabled = canType && ai.hasKey && !ai.busy && draft.isNotBlank()) { Text(if (ai.busy) stringResource(R.string.enviando) else stringResource(R.string.enviar)) }
                         }
-                        SwitchRow("Leer respuestas en voz alta", responseSpoken) { responseSpoken = it; prefs.speak = it }
+                        SwitchRow(stringResource(R.string.leer_respuestas_en_voz_alta), responseSpoken) { responseSpoken = it; prefs.speak = it }
                     }
                     "camera", "vision", "cast", "photo", "creator" -> {
                         val mode = page
-                        Heading(when (mode) { "creator" -> "Modo creador"; "vision" -> "Visión con IA"; "cast" -> "Compartir cámara"; "photo" -> "Análisis de fotos"; else -> "Cámara y grabación" },
-                            when (mode) { "creator" -> "Usa la guía 9:16 y marca las tomas que quieras exportar."; "vision" -> "Analiza un fotograma cuando tú lo pidas."; "cast" -> "Abre el visor a pantalla completa para compartirlo desde otra app."; "photo" -> "Haz una foto desde las gafas o usa una de tu galería."; else -> "Captura y guarda fotos o vídeo en tu galería." })
-                        if (capture.needsGlassesAppUpdate) ActionTile(Icons.Outlined.Link, "Revisar conexión en Meta AI",
-                            "Meta solicita revisar Conexiones de aplicaciones. Este paso es independiente del firmware.") {
+                        Heading(when (mode) { "creator" -> stringResource(R.string.modo_creador); "vision" -> stringResource(R.string.vision_con_ia); "cast" -> stringResource(R.string.compartir_camara); "photo" -> stringResource(R.string.analisis_de_fotos); else -> stringResource(R.string.camara_y_grabacion) },
+                            when (mode) { "creator" -> stringResource(R.string.usa_la_guia_y_marca); "vision" -> stringResource(R.string.analiza_un_fotograma_cuando_tu); "cast" -> stringResource(R.string.abre_el_visor_a_pantalla); "photo" -> stringResource(R.string.haz_una_foto_desde_las); else -> stringResource(R.string.captura_y_guarda_fotos_o) })
+                        if (capture.needsGlassesAppUpdate) ActionTile(Icons.Outlined.Link, stringResource(R.string.revisar_conexion_en_meta_ai),
+                            stringResource(R.string.meta_solicita_revisar_conexiones_de)) {
                             glasses.openGlassesAppUpdate(activity)
                         }
-                        if (mode in listOf("photo", "vision")) OutlinedButton(onClick = { go("ai"); photoPicker.launch("image/*") }) { Text("Elegir foto de la galería") }
-                        if (hardware.isFirmwareUpdateRequired) ActionTile(Icons.Outlined.SystemUpdate, "Actualizar gafas", "Meta AI abrirá la actualización") { glasses.openFirmwareUpdate(activity) }
+                        if (mode in listOf("photo", "vision")) OutlinedButton(onClick = { go("ai"); photoPicker.launch("image/*") }) { Text(stringResource(R.string.elegir_foto_de_la_galeria)) }
+                        if (hardware.isFirmwareUpdateRequired) ActionTile(Icons.Outlined.SystemUpdate, stringResource(R.string.actualizar_gafas), stringResource(R.string.meta_ai_abrira_la_actualizacion)) { glasses.openFirmwareUpdate(activity) }
                         if (mode == "creator" && prefs.quality == "FLUIDA") {
-                            Text("Para fijar la resolución del archivo, elige Baja, Media o Alta en Ajustes avanzados de vídeo antes de abrir la cámara.", color = Muted)
+                            Text(stringResource(R.string.para_fijar_la_resolucion_del), color = Muted)
                         }
-                        if (!hardware.isRegistered) ActionTile(Icons.Outlined.Bluetooth, "Vincular mis gafas", "Confirma el acceso en Meta AI", onClick = activity::connectGlasses)
+                        if (!hardware.isRegistered) ActionTile(Icons.Outlined.Bluetooth, stringResource(R.string.vincular_mis_gafas), stringResource(R.string.confirma_el_acceso_en_meta), onClick = activity::connectGlasses)
                         Viewfinder(capture.isStreaming, capture.hasStream, camera::setSurface, Modifier.fillMaxWidth().aspectRatio(if (prefs.landscape) 16 / 9f else 4 / 5f),
                             quickOverlay, reaction, filter, onFrame = { renderedPreview = it }, creatorGuide = mode == "creator")
                         capture.adaptiveLabel?.let { Text(it, color = Muted, style = MaterialTheme.typography.labelMedium) }
@@ -720,118 +722,120 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(enabled = !capture.isBusy && (capture.hasSession || hardware.hasActiveDevice), onClick = {
                                     if (capture.hasSession) camera.endSession() else camera.startSession()
-                                }) { Text(if (capture.hasSession) "Cerrar sesión" else if (capture.needsGlassesAppUpdate) "Reintentar sesión" else "Iniciar sesión") }
+                                }) { Text(if (capture.hasSession) stringResource(R.string.cerrar_sesion) else if (capture.needsGlassesAppUpdate) stringResource(R.string.reintentar_sesion) else stringResource(R.string.iniciar_sesion)) }
                                 Button(enabled = !capture.isBusy && capture.isSessionActive, onClick = {
                                     if (capture.hasStream) camera.stopStreaming() else camera.startStreaming()
-                                }) { Text(if (capture.hasStream) "Cerrar cámara" else "Abrir cámara") }
+                                }) { Text(if (capture.hasStream) stringResource(R.string.cerrar_camara) else stringResource(R.string.abrir_camara)) }
                             }
                         }
                         if (capture.hasStream) {
                             if (mode == "vision") {
-                                OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text("¿Qué quieres saber de la imagen?") })
+                                OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.que_quieres_saber_de_la)) })
                                 Button(enabled = capture.isStreaming && renderedPreview != null && !ai.busy && ai.hasKey, onClick = {
                                     val frame = renderedPreview?.bitmap
-                                    if (frame == null) notify("Espera a que aparezca el vídeo de las gafas.")
-                                    else submit(draft.ifBlank { DESCRIBE_IMAGE }, frame, contextual = false)
-                                }) { Text(if (ai.busy) "Analizando…" else "Analizar fotograma") }
+                                    if (frame == null) notify(activity.getString(R.string.espera_a_que_aparezca_el))
+                                    else submit(draft.ifBlank { describeImage }, frame, contextual = false)
+                                }) { Text(if (ai.busy) stringResource(R.string.analizando) else stringResource(R.string.analizar_fotograma)) }
                                 ai.turns.lastOrNull()?.let { Msg(it) }
                             } else if (mode == "cast") {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = { fullscreen = true }) { Text("Pantalla completa") }
-                                    if (!live.active) OutlinedButton(onClick = ::startInteractiveRecording) { Text("Grabar visor") }
-                                    if (live.active) OutlinedButton(onClick = ::stopBroadcast) { Text(if (live.recording) "Detener grabación" else "Detener directo") }
+                                    Button(onClick = { fullscreen = true }) { Text(stringResource(R.string.pantalla_completa)) }
+                                    if (!live.active) OutlinedButton(onClick = ::startInteractiveRecording) { Text(stringResource(R.string.grabar_visor)) }
+                                    if (live.active) OutlinedButton(onClick = ::stopBroadcast) { Text(if (live.recording) stringResource(R.string.detener_grabacion) else stringResource(R.string.detener_directo)) }
                                 }
-                                SwitchRow("Micrófono del móvil al grabar el visor", audio, !live.active) { audio = it }
-                                SwitchRow("Mostrar HUD", quickOverlay) { quickOverlay = it }
-                                Choice("Filtro del visor", filter, listOf("Natural", "Blanco y negro", "Cálido", "Frío")) { filter = it }
-                                Choice("Reacción visible", reaction.ifBlank { "Ninguna" }, listOf("Ninguna", "¡Bravo!", "En directo", "¡Gol!")) { reaction = if (it == "Ninguna") "" else it }
+                                SwitchRow(stringResource(R.string.microfono_del_movil_al_grabar), audio, !live.active) { audio = it }
+                                SwitchRow(stringResource(R.string.mostrar_hud), quickOverlay) { quickOverlay = it }
+                                Choice(stringResource(R.string.filtro_del_visor), filter, viewfinderFilters.keys.toList(),
+                                    display = { stringResource(viewfinderFilters.getValue(it)) }) { filter = it }
+                                Choice(stringResource(R.string.reaccion_visible), reaction, viewfinderReactions.keys.toList(),
+                                    display = { stringResource(viewfinderReactions.getValue(it)) }) { reaction = it }
                             } else {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(enabled = capture.isStreaming && !capture.isCapturingPhoto, onClick = camera::capturePhoto) { Text("Hacer foto") }
-                                    Button(enabled = capture.isStreaming || capture.isRecording, onClick = { camera.toggleRecording(activity::requestMicrophone) }) { Text(if (capture.isRecording) "Detener grabación" else "Grabar vídeo") }
+                                    OutlinedButton(enabled = capture.isStreaming && !capture.isCapturingPhoto, onClick = camera::capturePhoto) { Text(stringResource(R.string.hacer_foto)) }
+                                    Button(enabled = capture.isStreaming || capture.isRecording, onClick = { camera.toggleRecording(activity::requestMicrophone) }) { Text(if (capture.isRecording) stringResource(R.string.detener_grabacion) else stringResource(R.string.grabar_video)) }
                                 }
-                                if (capture.isRecording) Text("Grabando · ${capture.recordingElapsedSeconds} s", color = Lime)
-                                SwitchRow("Micrófono de las gafas", capture.includeAudioInStream, !capture.isRecording && capture.isStreaming) { camera.toggleMic() }
+                                if (capture.isRecording) Text(stringResource(R.string.grabando_s, capture.recordingElapsedSeconds), color = Lime)
+                                SwitchRow(stringResource(R.string.microfono_de_las_gafas), capture.includeAudioInStream, !capture.isRecording && capture.isStreaming) { camera.toggleMic() }
                                 if (mode == "creator") {
                                     if (capture.isRecording && !capture.includeAudioInStream) {
                                         OutlinedButton(onClick = { armVoiceCommand(mark = true) }, enabled = !voiceCommandPending) {
-                                            Text(if (creatorVoice) "Cancelar escucha" else "Marcar con la voz")
+                                            Text(if (creatorVoice) stringResource(R.string.cancelar_escucha) else stringResource(R.string.marcar_con_la_voz))
                                         }
-                                        Text(if (creatorVoice) "Di «${language.markCommand}»." else "Puedes decir «${language.markCommand}» tras pulsar.", color = Muted)
+                                        Text(if (creatorVoice) stringResource(R.string.di, language.markCommand) else stringResource(R.string.puedes_decir_tras_pulsar, language.markCommand), color = Muted)
                                     }
                                     if (capture.isRecording) OutlinedButton(onClick = {
-                                        if (camera.markRecording()) notify("Momento marcado.")
-                                        else notify("Espera al primer fotograma o revisa el límite de 30 marcas.")
-                                    }) { Text("Marcar momento · ${capture.recordingMarks.size}") }
+                                        if (camera.markRecording()) notify(activity.getString(R.string.momento_marcado))
+                                        else notify(activity.getString(R.string.espera_al_primer_fotograma_o))
+                                    }) { Text(stringResource(R.string.marcar_momento, capture.recordingMarks.size)) }
                                 }
                             }
                         }
                     }
                     "modes" -> {
-                        Heading("Modo de grabación", "Elige qué quieres guardar en el móvil.")
-                        ActionTile(Icons.Outlined.Speed, "Rendimiento", "Vídeo directo de la cámara de las gafas, con micrófono opcional") { go("camera") }
-                        ActionTile(Icons.Outlined.AutoAwesome, "Interactivo", "Graba el visor con HUD y reacciones") { go("cast") }
+                        Heading(stringResource(R.string.modo_de_grabacion), stringResource(R.string.elige_que_quieres_guardar_en))
+                        ActionTile(Icons.Outlined.Speed, stringResource(R.string.rendimiento), stringResource(R.string.video_directo_de_la_camara)) { go("camera") }
+                        ActionTile(Icons.Outlined.AutoAwesome, stringResource(R.string.interactivo), stringResource(R.string.graba_el_visor_con_hud)) { go("cast") }
                     }
                     "live" -> {
-                        Heading("Emitir en directo", "Emite el visor de las gafas mediante captura de pantalla de Android.")
+                        Heading(stringResource(R.string.emitir_en_directo), stringResource(R.string.emite_el_visor_de_las))
                         Block {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 PlatformIcon(prefs.platform)
-                                Text(prefs.platform, style = MaterialTheme.typography.titleLarge)
+                                Text(platformLabel(prefs.platform), style = MaterialTheme.typography.titleLarge)
                             }
-                            Text(if (prefs.secret(prefs.platform)) "Clave de emisión guardada" else "Falta configurar la clave de emisión", color = Muted)
-                            SwitchRow("Incluir micrófono del móvil", audio, !live.active) { audio = it }
+                            Text(if (prefs.secret(prefs.platform)) stringResource(R.string.clave_de_emision_guardada) else stringResource(R.string.falta_configurar_la_clave_de), color = Muted)
+                            SwitchRow(stringResource(R.string.incluir_microfono_del_movil), audio, !live.active) { audio = it }
                             if (prefs.platform in listOf("TikTok", "Instagram Live"))
-                                Text("El directo requiere acceso a la emisión por RTMP en tu cuenta.", color = Muted)
+                                Text(stringResource(R.string.el_directo_requiere_acceso_a), color = Muted)
                             if (live.message.isNotBlank()) Text(live.message, color = Lime)
                             Button(onClick = { if (live.active) stopBroadcast() else startStream() },
-                                enabled = live.active || capture.isStreaming) { Text(if (live.active) "Detener directo" else "Iniciar directo") }
+                                enabled = live.active || capture.isStreaming) { Text(if (live.active) stringResource(R.string.detener_directo) else stringResource(R.string.iniciar_directo)) }
                         }
-                        if (!capture.isStreaming) ActionTile(Icons.Outlined.Videocam, "Abrir cámara de las gafas", "Inicia una sesión y abre el visor") { go("camera") }
-                        ActionTile(Icons.Outlined.Settings, "Configurar destino", "Plataforma, URL y clave de emisión") { page = ""; tab = 3 }
+                        if (!capture.isStreaming) ActionTile(Icons.Outlined.Videocam, stringResource(R.string.abrir_camara_de_las_gafas), stringResource(R.string.inicia_una_sesion_y_abre)) { go("camera") }
+                        ActionTile(Icons.Outlined.Settings, stringResource(R.string.configurar_destino), stringResource(R.string.plataforma_url_y_clave_de)) { page = ""; tab = 3 }
                     }
                     "gps" -> {
-                        Heading("Ubicación y rutas", "Consulta la ubicación del móvil y abre una ruta o una búsqueda cercana en Maps.")
-                        Button(onClick = { if (activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) readLocation() else gps.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }) { Text("Consultar ubicación") }
+                        Heading(stringResource(R.string.ubicacion_y_rutas), stringResource(R.string.consulta_la_ubicacion_del_movil))
+                        Button(onClick = { if (activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) readLocation() else gps.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }) { Text(stringResource(R.string.consultar_ubicacion)) }
                         location?.let { Text(it, color = Lime) }
-                        OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text("Lugar o destino") })
+                        OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.lugar_o_destino)) })
                         Button(enabled = draft.isNotBlank(), onClick = {
                             runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${Uri.encode(draft)}"))) }
-                                .onFailure { notify("No se pudo abrir Maps.") }
-                        }) { Text("Abrir ruta en Maps") }
+                                .onFailure { notify(activity.getString(R.string.no_se_pudo_abrir_maps)) }
+                        }) { Text(stringResource(R.string.abrir_ruta_en_maps)) }
                         OutlinedButton(enabled = draft.isNotBlank(), onClick = {
                             runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(draft)}"))) }
-                                .onFailure { notify("No se pudo abrir Maps.") }
-                        }) { Text("Buscar lugares") }
+                                .onFailure { notify(activity.getString(R.string.no_se_pudo_abrir_maps)) }
+                        }) { Text(stringResource(R.string.buscar_lugares)) }
                     }
                     else -> when (tab) {
                         0 -> {
                             GlassesDashboard(hardware, capture, diagnose = { go("diagnostics") }, connect = activity::connectGlasses)
-                            LiveLaunchCard(liveModel.label) { go("conversation-live") }
-                            Section("Asistente")
+                            LiveLaunchCard(liveModel.displayLabel()) { go("conversation-live") }
+                            Section(stringResource(R.string.asistente))
                             OutlinedButton(onClick = { armVoiceCommand(mark = false) }, enabled = canArmVoice && !voiceCommandPending) {
                                 Icon(Icons.Outlined.Mic, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(if (wake) "Cancelar escucha" else "Activar frase de voz")
+                                Text(if (wake) stringResource(R.string.cancelar_escucha) else stringResource(R.string.activar_frase_de_voz))
                             }
-                            if (wake) Text("Di «$wakePhrase» y tu pregunta.", color = Muted)
-                            ActionTile(Icons.Outlined.Forum, "Conversación", ai.provider.label + " · Texto y dictado") { go("ai") }
-                            ActionTile(Icons.Outlined.Visibility, "Visión con IA", "Pregunta sobre lo que ves con las gafas") { go("vision") }
-                            ActionTile(Icons.Outlined.Translate, "Traducción por voz", "Traduce una conversación entre dos idiomas") { go("translation") }
-                            ActionTile(Icons.Outlined.ImageSearch, "Traducir una imagen", "Lee y traduce carteles, cartas o documentos") { image = null; go("vision-translate") }
-                            ActionTile(Icons.Outlined.EditNote, "Notas", "Ideas dictadas, texto y fotos") { go("notes") }
-                            Section("Captura y directo")
-                            ActionTile(Icons.Outlined.Movie, "Modo creador", "Guía vertical, marcas y exportación de fragmentos") { go("creator") }
-                            ActionTile(Icons.Outlined.Videocam, "Grabar vídeo", "Elige Rendimiento o Interactivo") { go("modes") }
-                            ActionTile(Icons.Outlined.CellTower, "Emitir en directo", prefs.platform) { go("live") }
-                            ActionTile(Icons.Outlined.Cast, "Compartir cámara", "Visor de las gafas a pantalla completa") { go("cast") }
-                            ActionTile(Icons.Outlined.PhotoCamera, "Análisis de fotos", "Haz una foto con las gafas o adjunta una imagen") { go("photo") }
+                            if (wake) Text(stringResource(R.string.di_y_tu_pregunta, wakePhrase), color = Muted)
+                            ActionTile(Icons.Outlined.Forum, stringResource(R.string.conversacion), ai.provider.label + stringResource(R.string.texto_y_dictado)) { go("ai") }
+                            ActionTile(Icons.Outlined.Visibility, stringResource(R.string.vision_con_ia), stringResource(R.string.pregunta_sobre_lo_que_ves)) { go("vision") }
+                            ActionTile(Icons.Outlined.Translate, stringResource(R.string.traduccion_por_voz), stringResource(R.string.traduce_una_conversacion_entre_dos)) { go("translation") }
+                            ActionTile(Icons.Outlined.ImageSearch, stringResource(R.string.traducir_una_imagen), stringResource(R.string.lee_y_traduce_carteles_cartas)) { image = null; go("vision-translate") }
+                            ActionTile(Icons.Outlined.EditNote, stringResource(R.string.notas), stringResource(R.string.ideas_dictadas_texto_y_fotos)) { go("notes") }
+                            Section(stringResource(R.string.captura_y_directo))
+                            ActionTile(Icons.Outlined.Movie, stringResource(R.string.modo_creador), stringResource(R.string.guia_vertical_marcas_y_exportacion)) { go("creator") }
+                            ActionTile(Icons.Outlined.Videocam, stringResource(R.string.grabar_video), stringResource(R.string.elige_rendimiento_o_interactivo)) { go("modes") }
+                            ActionTile(Icons.Outlined.CellTower, stringResource(R.string.emitir_en_directo), platformLabel(prefs.platform)) { go("live") }
+                            ActionTile(Icons.Outlined.Cast, stringResource(R.string.compartir_camara), stringResource(R.string.visor_de_las_gafas_a)) { go("cast") }
+                            ActionTile(Icons.Outlined.PhotoCamera, stringResource(R.string.analisis_de_fotos), stringResource(R.string.haz_una_foto_con_las)) { go("photo") }
                         }
                         1 -> History(ai.turns, assistant::clearHistory, assistant::deleteSessions, { assistant.selectSession(it); draft = ""; image = null; go("ai") }, ::notify)
                         2 -> {
-                            Heading("Laboratorio")
-                            ActionTile(Icons.Outlined.LocationOn, "Ubicación y rutas", "Localiza el móvil y abre rutas en Maps") { go("gps") }
-                            ActionTile(Icons.Outlined.Cast, "HUD y reacciones", "Superposiciones para el visor compartido") { go("cast") }
+                            Heading(stringResource(R.string.laboratorio))
+                            ActionTile(Icons.Outlined.LocationOn, stringResource(R.string.ubicacion_y_rutas), stringResource(R.string.localiza_el_movil_y_abre)) { go("gps") }
+                            ActionTile(Icons.Outlined.Cast, stringResource(R.string.hud_y_reacciones), stringResource(R.string.superposiciones_para_el_visor_compartido)) { go("cast") }
                         }
                         3 -> StudioSettings(activity, glasses, assistant, prefs, responseSpoken, { responseSpoken = it; prefs.speak = it },
                             language, { language = it; prefs.language = it }, wakePhrase,
@@ -845,46 +849,46 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
     }
 
     live.saved?.let { uri ->
-        AlertDialog(onDismissRequest = BroadcastService::dismissSaved, title = { Text("Grabación guardada") },
-            text = { Text("El vídeo está disponible en la galería de Android.") },
-            confirmButton = { TextButton(onClick = { shareUri(activity, uri, "video/mp4"); BroadcastService.dismissSaved() }) { Text("Compartir") } },
-            dismissButton = { TextButton(onClick = BroadcastService::dismissSaved) { Text("Cerrar") } })
+        AlertDialog(onDismissRequest = BroadcastService::dismissSaved, title = { Text(stringResource(R.string.grabacion_guardada)) },
+            text = { Text(stringResource(R.string.el_video_esta_disponible_en)) },
+            confirmButton = { TextButton(onClick = { shareUri(activity, uri, "video/mp4"); BroadcastService.dismissSaved() }) { Text(stringResource(R.string.compartir)) } },
+            dismissButton = { TextButton(onClick = BroadcastService::dismissSaved) { Text(stringResource(R.string.cerrar)) } })
     }
-    if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text("Ayuda y conexión") }, text = {
-        Text("Vincula primero las gafas en Meta AI y activa el modo desarrollador para esta compilación. Después abre Ajustes en MetaLima Ai, elige un proveedor e introduce tu clave. Para grabar, inicia la sesión de las gafas y abre la cámara.")
-    }, confirmButton = { TextButton(onClick = { help = false }) { Text("Entendido") } })
+    if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text(stringResource(R.string.ayuda_y_conexion)) }, text = {
+        Text(stringResource(R.string.vincula_primero_las_gafas_en))
+    }, confirmButton = { TextButton(onClick = { help = false }) { Text(stringResource(R.string.entendido)) } })
     if (capture.showCameraPermissionRedirectConfirm) AlertDialog(onDismissRequest = camera::cancelCameraPermissionRedirect,
-        title = { Text("Permitir cámara de las gafas") }, text = { Text("Meta AI te pedirá que autorices el acceso a la cámara.") },
-        confirmButton = { TextButton(onClick = { camera.confirmCameraPermissionRedirect(activity::requestWearableCamera) }) { Text("Continuar") } },
-        dismissButton = { TextButton(onClick = camera::cancelCameraPermissionRedirect) { Text("Cancelar") } })
+        title = { Text(stringResource(R.string.permitir_camara_de_las_gafas)) }, text = { Text(stringResource(R.string.meta_ai_te_pedira_que)) },
+        confirmButton = { TextButton(onClick = { camera.confirmCameraPermissionRedirect(activity::requestWearableCamera) }) { Text(stringResource(R.string.continuar)) } },
+        dismissButton = { TextButton(onClick = camera::cancelCameraPermissionRedirect) { Text(stringResource(R.string.cancelar)) } })
     capture.activePreview?.let { file ->
         var writing by remember(file) { mutableStateOf(false) }
         var saved by remember(file) { mutableStateOf<Uri?>(null) }
-        AlertDialog(onDismissRequest = { if (!writing) camera.dismissCapturePreview() }, title = { Text(if (file is CapturePreview.Photo) "Foto capturada" else "Grabación terminada") }, text = {
+        AlertDialog(onDismissRequest = { if (!writing) camera.dismissCapturePreview() }, title = { Text(if (file is CapturePreview.Photo) stringResource(R.string.foto_capturada) else stringResource(R.string.grabacion_terminada)) }, text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 when (file) {
-                    is CapturePreview.Photo -> Image(file.bitmap.asImageBitmap(), "Foto de las gafas", Modifier.fillMaxWidth().heightIn(max = 280.dp), contentScale = ContentScale.Fit)
+                    is CapturePreview.Photo -> Image(file.bitmap.asImageBitmap(), stringResource(R.string.foto_de_las_gafas), Modifier.fillMaxWidth().heightIn(max = 280.dp), contentScale = ContentScale.Fit)
                     is CapturePreview.Video -> AndroidView(factory = { context -> VideoView(context).apply {
                         setVideoURI(file.uri); setMediaController(android.widget.MediaController(context).also { it.setAnchorView(this) }); seekTo(1)
                     } }, modifier = Modifier.fillMaxWidth().height(220.dp))
                 }
                 if (file is CapturePreview.Video && file.marks.isNotEmpty()) {
-                    Text("Momentos marcados", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.momentos_marcados), style = MaterialTheme.typography.titleMedium)
                     file.marks.forEachIndexed { index, time ->
                         OutlinedButton(enabled = !writing, onClick = {
                             scope.launch {
                                 writing = true
                                 try {
                                     withContext(Dispatchers.IO) { exportMarkedClip(activity, file.uri, time) }
-                                    notify("Fragmento ${index + 1} guardado en la galería.")
+                                    notify(activity.getString(R.string.fragmento_guardado_en_la_galeria, index + 1))
                                 } catch (error: CancellationException) { throw error }
-                                catch (error: Exception) { notify(error.message ?: "No se pudo exportar el fragmento.") }
+                                catch (error: Exception) { notify(error.message ?: activity.getString(R.string.no_se_pudo_exportar_el_2)) }
                                 finally { writing = false }
                             }
-                        }) { Text("Exportar marca ${index + 1} · ${time / 1000} s") }
+                        }) { Text(stringResource(R.string.exportar_marca_s, index + 1, time / 1000)) }
                     }
                 }
-                if (saved != null) Text("Guardado en la galería.", color = Lime)
+                if (saved != null) Text(stringResource(R.string.guardado_en_la_galeria), color = Lime)
             }
         }, confirmButton = {
             TextButton(enabled = !writing, onClick = {
@@ -894,23 +898,32 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                     writing = true
                     val result = withContext(Dispatchers.IO) { runCatching { storeCapture(activity, (file as? CapturePreview.Photo)?.bitmap, (file as? CapturePreview.Video)?.uri) } }
                     writing = false
-                    result.onSuccess { saved = it }.onFailure { notify("No se pudo guardar la captura.") }
+                    result.onSuccess { saved = it }.onFailure { notify(activity.getString(R.string.no_se_pudo_guardar_la)) }
                 }
-            }) { Text(if (saved == null) "Guardar" else "Compartir") }
+            }) { Text(if (saved == null) stringResource(R.string.guardar) else stringResource(R.string.compartir)) }
         }, dismissButton = {
             Row {
                 if (file is CapturePreview.Photo) TextButton(enabled = !writing, onClick = {
                     image = file.bitmap
-                    if (draft.isBlank()) draft = DESCRIBE_IMAGE
+                    if (draft.isBlank()) draft = describeImage
                     camera.dismissCapturePreview()
                     go("ai")
-                }) { Text("Analizar") }
-                TextButton(enabled = !writing, onClick = camera::dismissCapturePreview) { Text("Cerrar") }
+                }) { Text(stringResource(R.string.analizar)) }
+                TextButton(enabled = !writing, onClick = camera::dismissCapturePreview) { Text(stringResource(R.string.cerrar)) }
             }
         })
     }
     }
 }
+
+private val viewfinderFilters = linkedMapOf(
+    "Natural" to R.string.filter_natural, "Blanco y negro" to R.string.filter_mono,
+    "Cálido" to R.string.filter_warm, "Frío" to R.string.filter_cool
+)
+private val viewfinderReactions = linkedMapOf(
+    "" to R.string.reaction_none, "¡Bravo!" to R.string.reaction_bravo,
+    "En directo" to R.string.reaction_live, "¡Gol!" to R.string.reaction_goal
+)
 
 @Composable private fun Viewfinder(streaming: Boolean, hasStream: Boolean, surface: (Surface?) -> Unit, modifier: Modifier, hud: Boolean, reaction: String, filter: String,
     onFrame: (TextureView?) -> Unit = {}, creatorGuide: Boolean = false) {
@@ -952,7 +965,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         })
         if (!received) Column(horizontalAlignment = Alignment.CenterHorizontally) {
             DeviceArt(Modifier.width(155.dp).height(98.dp))
-            Text(if (streaming) "Esperando imagen…" else "Cámara cerrada", color = Muted)
+            Text(if (streaming) stringResource(R.string.esperando_imagen) else stringResource(R.string.camara_cerrada), color = Muted)
         }
         if (hud && received) {
             Box(Modifier.matchParentSize().padding(16.dp).border(1.dp, Lime.copy(alpha = .55f), RoundedCornerShape(12.dp)))
@@ -960,7 +973,7 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
         }
         if (creatorGuide && received) Box(Modifier.fillMaxHeight(.91f).aspectRatio(9 / 16f)
             .border(1.dp, Color.White.copy(alpha = .80f), RoundedCornerShape(4.dp)))
-        if (reaction.isNotBlank() && received) Text(reaction, color = Lime, fontWeight = FontWeight.Bold,
+        if (reaction.isNotBlank() && received) Text(stringResource(viewfinderReactions.getValue(reaction)), color = Lime, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.BottomCenter).padding(26.dp).background(Ink.copy(alpha = .8f), Panel).padding(horizontal = 18.dp, vertical = 8.dp))
     }
 }
@@ -970,12 +983,14 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
     Block {
         Text(turn.user, style = MaterialTheme.typography.titleMedium, color = Lime)
         Text(turn.answer)
-        TextButton(onClick = { clipboard.setText(AnnotatedString(turn.answer)) }) { Text("Copiar respuesta") }
+        TextButton(onClick = { clipboard.setText(AnnotatedString(turn.answer)) }) { Text(stringResource(R.string.copiar_respuesta)) }
     }
 }
 
 @Composable private fun History(turns: List<Turn>, clear: () -> Unit, delete: (Set<String>) -> Unit, resume: (String) -> Unit, notify: (String) -> Unit) {
     val context = LocalContext.current
+    val locale = context.interfaceLocale()
+    val date = remember(locale) { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale) }
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf(false) }
@@ -983,18 +998,18 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
     val found = turns.groupBy { it.session }.values.filter { group ->
         query.isBlank() || group.any { it.user.contains(query, true) || it.answer.contains(query, true) }
     }.sortedByDescending { it.last().time }
-    Heading("Historial", "Conversaciones guardadas en este dispositivo.")
-    OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Buscar en el historial") }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true)
+    Heading(stringResource(R.string.historial), stringResource(R.string.conversaciones_guardadas_en_este_dispositivo))
+    OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.buscar_en_el_historial)) }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, singleLine = true)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(enabled = found.isNotEmpty(), onClick = { scope.launch {
             val relevant = found.filter { selected.isEmpty() || it.first().session in selected }.flatten().sortedBy { it.time }
-            if (relevant.isEmpty()) { notify("Selecciona conversaciones que aparezcan en la búsqueda."); return@launch }
+            if (relevant.isEmpty()) { notify(context.getString(R.string.selecciona_conversaciones_que_aparezcan_en)); return@launch }
             val exported = withContext(Dispatchers.IO) { runCatching { exportHistory(context, relevant) } }
-            exported.onSuccess { shareUri(context, it, "application/pdf") }.onFailure { notify("No se pudo exportar el historial.") }
-        } }) { Text("Exportar a PDF") }
-        TextButton(enabled = turns.isNotEmpty(), onClick = { confirm = true }) { Text(if (selected.isEmpty()) "Borrar historial" else "Borrar selección") }
+            exported.onSuccess { shareUri(context, it, "application/pdf") }.onFailure { notify(context.getString(R.string.no_se_pudo_exportar_el)) }
+        } }) { Text(stringResource(R.string.exportar_a_pdf)) }
+        TextButton(enabled = turns.isNotEmpty(), onClick = { confirm = true }) { Text(if (selected.isEmpty()) stringResource(R.string.borrar_historial) else stringResource(R.string.borrar_seleccion)) }
     }
-    if (found.isEmpty()) Text(if (query.isBlank()) "Aún no hay conversaciones." else "No hay coincidencias.", color = Muted)
+    if (found.isEmpty()) Text(if (query.isBlank()) stringResource(R.string.aun_no_hay_conversaciones) else stringResource(R.string.no_hay_coincidencias), color = Muted)
     found.forEach { group ->
         val first = group.first()
         val recent = group.last()
@@ -1005,13 +1020,13 @@ private const val DESCRIBE_IMAGE = "Describe lo que se ve en esta imagen."
                 })
                 Column(Modifier.weight(1f)) {
                     Text(first.user, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                    Text("${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(recent.time))} · ${group.size * 2} mensajes", color = Muted)
+                    Text(stringResource(R.string.mensajes, date.format(Date(recent.time)), group.size * 2), color = Muted)
                 }
             }
-            TextButton(onClick = { resume(first.session) }) { Text("Continuar conversación") }
+            TextButton(onClick = { resume(first.session) }) { Text(stringResource(R.string.continuar_conversacion)) }
         }
     }
-    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(if (selected.isEmpty()) "¿Borrar todo el historial?" else "¿Borrar las conversaciones seleccionadas?") },
-        confirmButton = { TextButton(onClick = { if (selected.isEmpty()) clear() else delete(selected); selected = emptySet(); confirm = false }) { Text("Borrar") } },
-        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancelar") } })
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text(if (selected.isEmpty()) stringResource(R.string.borrar_todo_el_historial) else stringResource(R.string.borrar_las_conversaciones_seleccionadas)) },
+        confirmButton = { TextButton(onClick = { if (selected.isEmpty()) clear() else delete(selected); selected = emptySet(); confirm = false }) { Text(stringResource(R.string.borrar)) } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.cancelar)) } })
 }

@@ -45,7 +45,7 @@ internal class BroadcastService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            finish("Directo finalizado.")
+            finish(interfaceString(R.string.directo_finalizado))
             return START_NOT_STICKY
         }
         if (intent == null || display != null) return START_NOT_STICKY
@@ -54,7 +54,7 @@ internal class BroadcastService : Service() {
         val url = intent.getStringExtra("endpoint")
         val record = intent.getBooleanExtra("record", false)
         if (token == null || (!record && url.isNullOrBlank())) {
-            finish("Faltan el permiso de pantalla o el destino del directo.")
+            finish(interfaceString(R.string.faltan_el_permiso_de_pantalla))
             return START_NOT_STICKY
         }
         val audio = intent.getBooleanExtra("audio", false)
@@ -62,13 +62,13 @@ internal class BroadcastService : Service() {
             startForeground(204, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
                 if (audio) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
             if (audio) routeAudio(intent.getStringExtra("route").orEmpty())
-            current.value = Transmission(true, if (record) "Grabando visor…" else "Conectando con la plataforma…", record)
+            current.value = Transmission(true, if (record) interfaceString(R.string.grabando_visor) else interfaceString(R.string.conectando_con_la_plataforma), record)
             val encoder = RtmpDisplay(this, false, object : ConnectChecker {
                 override fun onConnectionStarted(url: String) = Unit
-                override fun onConnectionSuccess() { main.post { if (display != null) current.value = Transmission(true, "Emisión en directo.") } }
-                override fun onConnectionFailed(reason: String) { main.post { if (display != null) finish("El servidor rechazó la emisión o no está disponible.") } }
-                override fun onDisconnect() { main.post { if (display != null) finish("Se ha interrumpido la emisión.") } }
-                override fun onAuthError() { main.post { if (display != null) finish("La plataforma ha rechazado la clave de emisión.") } }
+                override fun onConnectionSuccess() { main.post { if (display != null) current.value = Transmission(true, interfaceString(R.string.emision_en_directo)) } }
+                override fun onConnectionFailed(reason: String) { main.post { if (display != null) finish(interfaceString(R.string.el_servidor_rechazo_la_emision)) } }
+                override fun onDisconnect() { main.post { if (display != null) finish(interfaceString(R.string.se_ha_interrumpido_la_emision)) } }
+                override fun onAuthError() { main.post { if (display != null) finish(interfaceString(R.string.la_plataforma_ha_rechazado_la)) } }
                 override fun onAuthSuccess() = Unit
             })
             display = encoder
@@ -76,7 +76,7 @@ internal class BroadcastService : Service() {
             val height = if (wide) 720 else 1280
             val width = if (wide) 1280 else 720
             encoder.setMediaProjectionCallback(object : MediaProjection.Callback() {
-                override fun onStop() { main.post { if (display != null) finish("Se ha detenido la captura de pantalla.") } }
+                override fun onStop() { main.post { if (display != null) finish(interfaceString(R.string.se_ha_detenido_la_captura)) } }
             })
             check(encoder.prepareVideo(width, height, intent.getIntExtra("fps", 24), 3_000_000, 0, resources.displayMetrics.densityDpi))
             if (audio) check(encoder.prepareAudio(96_000, 44100, false))
@@ -88,18 +88,18 @@ internal class BroadcastService : Service() {
                 encoder.startRecord(target.absolutePath)
             } else encoder.startStream(requireNotNull(url))
         } catch (_: Exception) {
-            finish("No se pudo iniciar el directo. Comprueba los permisos y el formato de vídeo.")
+            finish(interfaceString(R.string.no_se_pudo_iniciar_el_2))
         }
         return START_NOT_STICKY
     }
 
     private fun notification(): Notification {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel("live", "Emisiones en directo", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel("live", interfaceString(R.string.emisiones_en_directo), NotificationManager.IMPORTANCE_LOW))
         val stop = PendingIntent.getService(this, 204, Intent(this, BroadcastService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, "live").setSmallIcon(R.drawable.smart_glasses_icon)
-            .setContentTitle("MetaLima Ai · Directo").setContentText("Compartiendo una captura de pantalla")
-            .setOngoing(true).addAction(Notification.Action.Builder(null, "Detener", stop).build()).build()
+            .setContentTitle(interfaceString(R.string.metalima_ai_directo)).setContentText(interfaceString(R.string.compartiendo_una_captura_de_pantalla))
+            .setOngoing(true).addAction(Notification.Action.Builder(null, interfaceString(R.string.detener), stop).build()).build()
     }
 
     private fun routeAudio(route: String) {
@@ -138,7 +138,7 @@ internal class BroadcastService : Service() {
         recording = null
         if (file == null) current.value = Transmission(false, message)
         else {
-            current.value = Transmission(false, "Guardando grabación interactiva…")
+            current.value = Transmission(false, interfaceString(R.string.guardando_grabacion_interactiva))
             val app = applicationContext
             CoroutineScope(Dispatchers.IO).launch {
                 val saved = file.takeIf { it.length() > 1024 }?.let { target ->
@@ -151,7 +151,7 @@ internal class BroadcastService : Service() {
                 main.post {
                     val previous = current.value
                     current.value = previous.copy(
-                        message = if (previous.active) previous.message else if (saved == null) "No se pudo guardar el vídeo interactivo." else "Grabación interactiva guardada.",
+                        message = if (previous.active) previous.message else if (saved == null) interfaceString(R.string.no_se_pudo_guardar_el) else interfaceString(R.string.grabacion_interactiva_guardada),
                         saved = saved
                     )
                 }
@@ -165,7 +165,7 @@ internal class BroadcastService : Service() {
         release()
         recording?.delete()
         recording = null
-        if (current.value.active) current.value = Transmission(false, "Directo finalizado.")
+        if (current.value.active) current.value = Transmission(false, interfaceString(R.string.directo_finalizado))
         super.onDestroy()
     }
 }

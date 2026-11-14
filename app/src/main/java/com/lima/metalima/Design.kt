@@ -1,5 +1,6 @@
 package com.lima.metalima
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,12 +36,12 @@ internal val Lime: Color @Composable get() = MaterialTheme.colorScheme.primary
 internal val Muted: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
 internal val Panel = RoundedCornerShape(22.dp)
 
-internal enum class Skin(val label: String, val background: Long, val surface: Long, val accent: Long,
+internal enum class Skin(val label: Int, val background: Long, val surface: Long, val accent: Long,
     val muted: Long, val text: Long, val border: Long, val onAccent: Long, val light: Boolean = false) {
-    GRAPHITE("Grafito", 0xFF101217, 0xFF1A1D25, 0xFFD4FA77, 0xFFB4BBC7, 0xFFF5F7FA, 0xFF323743, 0xFF1A2806),
-    OCEAN("Océano", 0xFF0C1721, 0xFF152635, 0xFF82D9ED, 0xFFB0C4D2, 0xFFF0F7FD, 0xFF344F61, 0xFF062E38),
-    AMBER("Ámbar", 0xFF1B1512, 0xFF2C2018, 0xFFFCC384, 0xFFD1B8A8, 0xFFFFF4EC, 0xFF564033, 0xFF382014),
-    PORCELAIN("Porcelana", 0xFFF1F4F6, 0xFFFFFFFF, 0xFF175C53, 0xFF46565E, 0xFF111D24, 0xFFCAD5DA, 0xFFFFFFFF, true);
+    GRAPHITE(R.string.skin_graphite, 0xFF101217, 0xFF1A1D25, 0xFFD4FA77, 0xFFB4BBC7, 0xFFF5F7FA, 0xFF323743, 0xFF1A2806),
+    OCEAN(R.string.skin_ocean, 0xFF0C1721, 0xFF152635, 0xFF82D9ED, 0xFFB0C4D2, 0xFFF0F7FD, 0xFF344F61, 0xFF062E38),
+    AMBER(R.string.skin_amber, 0xFF1B1512, 0xFF2C2018, 0xFFFCC384, 0xFFD1B8A8, 0xFFFFF4EC, 0xFF564033, 0xFF382014),
+    PORCELAIN(R.string.skin_porcelain, 0xFFF1F4F6, 0xFFFFFFFF, 0xFF175C53, 0xFF46565E, 0xFF111D24, 0xFFCAD5DA, 0xFFFFFFFF, true);
 
     fun colors(): ColorScheme {
         val base = if (light) lightColorScheme() else darkColorScheme()
@@ -92,7 +93,7 @@ internal enum class Skin(val label: String, val background: Long, val surface: L
             Icon(Icons.Outlined.Headphones, null, tint = palette.onPrimary)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Conversación en directo", style = MaterialTheme.typography.titleMedium, color = palette.onPrimary)
+            Text(stringResource(R.string.conversacion_en_directo), style = MaterialTheme.typography.titleMedium, color = palette.onPrimary)
             Text(model, style = MaterialTheme.typography.bodyMedium, color = palette.onPrimary)
         }
         Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = palette.onPrimary)

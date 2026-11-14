@@ -1,5 +1,7 @@
 package com.lima.metalima.livemode
 
+import com.lima.metalima.interfaceString
+import com.lima.metalima.R
 import android.app.Application
 import android.util.Base64
 import android.os.SystemClock
@@ -61,9 +63,9 @@ internal class LiveConversationViewModel(app: Application) : AndroidViewModel(ap
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IllegalStateException) {
-                current.update { it.copy(error = error.message ?: "La conversación en directo se detuvo.") }
+                current.update { it.copy(error = error.message ?: getApplication<Application>().interfaceString(R.string.la_conversacion_en_directo_se)) }
             } catch (_: Exception) {
-                current.update { it.copy(error = "No se pudo iniciar o mantener la conversación. Revisa el micrófono, Bluetooth e Internet.") }
+                current.update { it.copy(error = getApplication<Application>().interfaceString(R.string.no_se_pudo_iniciar_o)) }
             } finally {
                 withContext(NonCancellable + Dispatchers.IO) { audio.close() }
                 current.update { it.copy(phase = LivePhase.IDLE, speaking = false) }
@@ -102,11 +104,11 @@ internal class LiveConversationViewModel(app: Application) : AndroidViewModel(ap
         try {
             while (true) {
                 val openedAt = SystemClock.elapsedRealtime()
-                val socket = LiveSocket(key, model, handle, language, translation, tools)
+                val socket = LiveSocket(getApplication(), key, model, handle, language, translation, tools)
                 connection = socket
                 try {
                     check(withTimeoutOrNull(12_000) { socket.ready.await(); true } == true) {
-                        "${model.provider.label} tardó demasiado en iniciar. Comprueba Internet y vuelve a intentarlo."
+                        getApplication<Application>().interfaceString(R.string.tardo_demasiado_en_iniciar_comprueba, model.provider.label)
                     }
                     if (device == null) device = audio.open(names, usePhone)
                     current.update { it.copy(phase = LivePhase.LISTENING, device = device, setupMs = SystemClock.elapsedRealtime() - openedAt) }
@@ -128,7 +130,7 @@ internal class LiveConversationViewModel(app: Application) : AndroidViewModel(ap
                             for (message in socket.messages) {
                                 if (model.provider == Provider.OPENAI) {
                                     when (message.optString("type")) {
-                                        "session.closed" -> throw LiveConnectionError("La sesión de OpenAI terminó. Pulsa Iniciar para volver a hablar.", false)
+                                        "session.closed" -> throw LiveConnectionError(getApplication<Application>().interfaceString(R.string.la_sesion_de_openai_termino), false)
                                         "session.delegation.created" -> {
                                             val id = message.optJSONObject("delegation")?.optString("id").orEmpty()
                                             if (id.isNotBlank()) socket.send(JSONObject().put("type", "session.thinking.append")
@@ -172,8 +174,8 @@ internal class LiveConversationViewModel(app: Application) : AndroidViewModel(ap
                                             val response = message.optJSONObject("response")
                                             if (response?.optString("status") == "failed") {
                                                 val reason = response.optJSONObject("status_details")?.optJSONObject("error")?.optString("code").orEmpty()
-                                                val notice = if (reason.contains("quota") || reason.contains("rate_limit")) "OpenAI alcanzó el límite del proyecto."
-                                                    else "OpenAI no pudo generar la respuesta de voz. Prueba otro modelo disponible en tu proyecto."
+                                                val notice = if (reason.contains("quota") || reason.contains("rate_limit")) getApplication<Application>().interfaceString(R.string.openai_alcanzo_el_limite_del)
+                                                    else getApplication<Application>().interfaceString(R.string.openai_no_pudo_generar_la)
                                                 throw LiveConnectionError(notice, false)
                                             }
                                             if (answer.isNotBlank()) keepTurn()
@@ -184,7 +186,7 @@ internal class LiveConversationViewModel(app: Application) : AndroidViewModel(ap
                                 }
                                 if (message.has("goAway")) {
                                     if (handle == null) continue
-                                    throw LiveConnectionError("Gemini está renovando la conexión.", true)
+                                    throw LiveConnectionError(getApplication<Application>().interfaceString(R.string.gemini_esta_renovando_la_conexion), true)
                                 }
                                 val update = message.optJSONObject("sessionResumptionUpdate")
                                 if (update?.optBoolean("resumable") == true) {
@@ -197,12 +199,12 @@ internal class LiveConversationViewModel(app: Application) : AndroidViewModel(ap
                                         val call = calls.optJSONObject(i) ?: continue
                                         val name = call.optString("name")
                                         val result = try {
-                                            if (tools.none { it.name == name }) error("Acción no habilitada.")
+                                            if (tools.none { it.name == name }) error(getApplication<Application>().interfaceString(R.string.accion_no_habilitada))
                                             handleTool(name, call.optJSONObject("args") ?: JSONObject())
                                         } catch (error: CancellationException) {
                                             throw error
                                         } catch (error: Exception) {
-                                            JSONObject().put("response", JSONObject().put("error", error.message ?: "No se pudo completar la acción."))
+                                            JSONObject().put("response", JSONObject().put("error", error.message ?: getApplication<Application>().interfaceString(R.string.no_se_pudo_completar_la_2)))
                                         }
                                         responses.put(result.put("id", call.optString("id")).put("name", name))
                                     }

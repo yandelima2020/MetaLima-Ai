@@ -1,5 +1,7 @@
 package com.lima.metalima
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import java.util.Locale
 
 internal enum class AppLanguage(
@@ -15,4 +17,14 @@ internal enum class AppLanguage(
     val locale: Locale get() = Locale.forLanguageTag(tag)
 }
 
-internal val translationLanguages = listOf("Español", "Inglés", "Alemán", "Italiano", "Chino mandarín", "Francés", "Portugués", "Árabe", "Japonés")
+private val translationLabels = linkedMapOf(
+    "Español" to R.string.language_spanish, "Inglés" to R.string.language_english,
+    "Alemán" to R.string.language_german, "Italiano" to R.string.language_italian,
+    "Chino mandarín" to R.string.language_chinese, "Francés" to R.string.language_french,
+    "Portugués" to R.string.language_portuguese, "Árabe" to R.string.language_arabic,
+    "Japonés" to R.string.language_japanese
+)
+internal val translationLanguages = translationLabels.keys.toList()
+
+@Composable internal fun translationLabel(language: String): String =
+    translationLabels[language]?.let { stringResource(it) } ?: language

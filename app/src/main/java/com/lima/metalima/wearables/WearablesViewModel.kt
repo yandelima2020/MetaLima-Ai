@@ -16,6 +16,7 @@
 
 package com.lima.metalima.wearables
 
+import com.lima.metalima.interfaceString
 import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -97,7 +98,7 @@ class WearablesViewModel(private val application: Application) : AndroidViewMode
           updateFirmwareUpdateRequired()
           if (metadata.compatibility == DeviceCompatibility.DEVICE_UPDATE_REQUIRED) {
             val deviceName = metadata.name.ifEmpty { deviceId }
-            setRecentError(application.getString(R.string.error_device_update_required, deviceName))
+            setRecentError(application.interfaceString(R.string.error_device_update_required, deviceName))
           }
         }
       }
@@ -120,7 +121,7 @@ class WearablesViewModel(private val application: Application) : AndroidViewMode
   }
 
   fun openGlassesAppUpdate(activity: Activity) {
-    val message = "Abre Meta AI y entra en Conexiones de aplicaciones para revisar la integración de tus gafas."
+    val message = application.interfaceString(R.string.abre_meta_ai_y_entra)
     runCatching {
       Wearables.openDATGlassesAppUpdate(activity).onFailure { _, _ -> setRecentError(message) }
     }.onFailure { setRecentError(message) }
@@ -152,7 +153,7 @@ class WearablesViewModel(private val application: Application) : AndroidViewMode
       onAllGranted()
       startMonitoring()
     } else {
-      setRecentError(application.getString(R.string.error_permissions_required))
+      setRecentError(application.interfaceString(R.string.error_permissions_required))
     }
   }
 

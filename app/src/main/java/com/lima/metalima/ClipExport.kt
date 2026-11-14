@@ -19,13 +19,13 @@ internal suspend fun exportMarkedClip(context: Context, source: Uri, markMs: Lon
         extractor.setDataSource(context, source, null)
         val video = (0 until extractor.trackCount).firstOrNull {
             extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
-        } ?: error("La grabación no contiene vídeo.")
+        } ?: error(context.interfaceString(R.string.la_grabacion_no_contiene_video))
         val videoFormat = extractor.getTrackFormat(video)
         val end = (markMs + 5000) * 1000
         extractor.selectTrack(video)
         extractor.seekTo(((markMs - 3000).coerceAtLeast(0)) * 1000, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
         val start = extractor.sampleTime
-        check(start >= 0 && start < end) { "No se encontró vídeo alrededor de esta marca." }
+        check(start >= 0 && start < end) { context.interfaceString(R.string.no_se_encontro_video_alrededor) }
         val audio = (0 until extractor.trackCount).firstOrNull {
             extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
         }
@@ -49,7 +49,7 @@ internal suspend fun exportMarkedClip(context: Context, source: Uri, markMs: Lon
                 if (time > end) break
                 if (time >= start) {
                     val length = extractor.sampleSize
-                    check(length in 0..16_777_216L) { "La muestra de vídeo es demasiado grande." }
+                    check(length in 0..16_777_216L) { context.interfaceString(R.string.la_muestra_de_video_es) }
                     if (buffer.capacity() < length) buffer = ByteBuffer.allocateDirect(length.toInt())
                     buffer.clear()
                     val count = extractor.readSampleData(buffer, 0)
@@ -62,7 +62,7 @@ internal suspend fun exportMarkedClip(context: Context, source: Uri, markMs: Lon
                 }
                 if (!extractor.advance()) break
             }
-            check(wroteVideo) { "No se encontró un fotograma inicial para el fragmento." }
+            check(wroteVideo) { context.interfaceString(R.string.no_se_encontro_un_fotograma) }
             started = false
             muxer.stop()
         } finally {

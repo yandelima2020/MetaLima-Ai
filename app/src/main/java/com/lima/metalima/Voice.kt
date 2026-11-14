@@ -36,7 +36,7 @@ internal fun dictationRequest(language: AppLanguage) = Intent(RecognizerIntent.A
             SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
         }.getOrNull()
         if (recognizer == null) {
-            onFinish(null, "Android no ofrece reconocimiento de voz sin conexión en este móvil.")
+            onFinish(null, context.getString(R.string.android_no_ofrece_reconocimiento_de))
             return@DisposableEffect onDispose {}
         }
 
@@ -48,14 +48,14 @@ internal fun dictationRequest(language: AppLanguage) = Intent(RecognizerIntent.A
             active = false
             onFinish(question, message)
         }
-        val timeout = Runnable { finish(message = "Terminó el tiempo de escucha. Pulsa para volver a intentarlo.") }
+        val timeout = Runnable { finish(message = context.getString(R.string.termino_el_tiempo_de_escucha)) }
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> if (active && !started) {
                     started = true
                     main.postDelayed(timeout, 10_000)
                     runCatching { recognizer.startListening(dictationRequest(language)) }
-                        .onFailure { finish(message = "No se pudo abrir el reconocimiento de voz.") }
+                        .onFailure { finish(message = context.getString(R.string.no_se_pudo_abrir_el_3)) }
                 }
                 Lifecycle.Event.ON_PAUSE -> {
                     finish()
@@ -75,16 +75,16 @@ internal fun dictationRequest(language: AppLanguage) = Intent(RecognizerIntent.A
             override fun onResults(results: Bundle?) {
                 val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                 val question = commandQuestion(heard, phrase, language == AppLanguage.CHINESE)
-                finish(question, if (question == null) "No se reconoció «$phrase». Pulsa para volver a intentarlo." else null)
+                finish(question, if (question == null) context.getString(R.string.no_se_reconocio_pulsa_para, phrase) else null)
             }
             override fun onError(error: Int) {
                 val message = when (error) {
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Concede permiso de micrófono a MetaLima Ai."
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.concede_permiso_de_microfono_a)
                     SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED,
-                    SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "Comprueba si Android ofrece reconocimiento sin conexión para ${language.label}."
+                    SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> context.getString(R.string.comprueba_si_android_ofrece_reconocimiento, language.label)
                     SpeechRecognizer.ERROR_NO_MATCH,
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No se reconoció «$phrase». Pulsa para volver a intentarlo."
-                    else -> "El reconocimiento de voz se interrumpió. Pulsa para volver a intentarlo."
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.no_se_reconocio_pulsa_para, phrase)
+                    else -> context.getString(R.string.el_reconocimiento_de_voz_se)
                 }
                 finish(message = message)
             }

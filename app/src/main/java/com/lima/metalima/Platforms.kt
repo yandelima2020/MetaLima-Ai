@@ -1,5 +1,6 @@
 package com.lima.metalima
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -51,17 +52,17 @@ import androidx.compose.ui.unit.dp
 @Composable internal fun PlatformChoice(selected: String, select: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text("Plataforma de emisión", color = Muted)
+        Text(stringResource(R.string.plataforma_de_emision), color = Muted)
         Box {
             OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
                 PlatformIcon(selected)
-                Text("  $selected", Modifier.weight(1f))
-                Icon(Icons.Outlined.KeyboardArrowDown, "Ver plataformas")
+                Text(platformLabel(selected), Modifier.weight(1f))
+                Icon(Icons.Outlined.KeyboardArrowDown, stringResource(R.string.ver_plataformas))
             }
             DropdownMenu(expanded, { expanded = false }, modifier = Modifier.heightIn(max = 400.dp)) {
                 destinations.forEach { platform ->
                     DropdownMenuItem(
-                        text = { Text(platform) },
+                        text = { Text(platformLabel(platform)) },
                         leadingIcon = { PlatformIcon(platform) },
                         onClick = { expanded = false; select(platform) }
                     )
@@ -69,4 +70,10 @@ import androidx.compose.ui.unit.dp
             }
         }
     }
+}
+
+@Composable internal fun platformLabel(platform: String): String = when (platform) {
+    "OBS / Servidor RTMP" -> stringResource(R.string.destination_obs)
+    "RTMP personalizado" -> stringResource(R.string.destination_custom)
+    else -> platform
 }

@@ -1,5 +1,6 @@
 package com.lima.metalima
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,10 +33,10 @@ import com.lima.metalima.wearables.WearablesUiState
     val battery = device?.batteryLevel?.takeIf { it in 0..100 }
     val connected = hardware.hasActiveDevice
     val status = when {
-        connected -> "Conectadas"
-        hardware.isRegistering -> "Vinculando…"
-        hardware.isRegistered -> "Esperando conexión"
-        else -> "Sin vincular"
+        connected -> stringResource(R.string.conectadas)
+        hardware.isRegistering -> stringResource(R.string.vinculando)
+        hardware.isRegistered -> stringResource(R.string.esperando_conexion)
+        else -> stringResource(R.string.sin_vincular)
     }
     val statusColor = if (connected) Lime else Muted
     val accent = Lime
@@ -43,7 +44,7 @@ import com.lima.metalima.wearables.WearablesUiState
         .background(Brush.radialGradient(listOf(accent.copy(alpha = .12f), SurfaceTone), center = Offset(410f, 220f), radius = 550f))
         .border(1.dp, Line, Panel).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Mis gafas", style = MaterialTheme.typography.labelLarge, color = Muted)
+            Text(stringResource(R.string.mis_gafas), style = MaterialTheme.typography.labelLarge, color = Muted)
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(7.dp).background(statusColor, CircleShape))
                 Text(status, color = statusColor, style = MaterialTheme.typography.labelMedium)
@@ -51,7 +52,7 @@ import com.lima.metalima.wearables.WearablesUiState
         }
         Text(name, style = MaterialTheme.typography.headlineMedium, maxLines = 2)
         BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1.94f)) {
-            Image(painterResource(R.drawable.rayban_meta_wayfarer), "Ray-Ban Meta Wayfarer con cámara y LED de privacidad",
+            Image(painterResource(R.drawable.rayban_meta_wayfarer), stringResource(R.string.ray_ban_meta_wayfarer_con),
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
             if (capture.isRecording || capture.isCapturingPhoto) {
                 Box(Modifier.offset(maxWidth * .915f - 7.dp, maxHeight * .395f - 7.dp).size(14.dp)
@@ -63,23 +64,23 @@ import com.lima.metalima.wearables.WearablesUiState
             verticalAlignment = Alignment.CenterVertically) {
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.BatteryStd, null, Modifier.size(19.dp), tint = if (battery != null) accent else Muted)
-                Text(battery?.let { "$it% de batería" } ?: "Batería sin lectura", fontWeight = FontWeight.Medium)
+                Text(battery?.let { stringResource(R.string.de_bateria, it) } ?: stringResource(R.string.bateria_sin_lectura), fontWeight = FontWeight.Medium)
             }
             Text(when {
-                capture.isRecording -> "Grabando"
-                capture.isCapturingPhoto -> "Capturando"
-                capture.isStreaming -> "Cámara activa"
-                else -> "Cámara en reposo"
+                capture.isRecording -> stringResource(R.string.grabando)
+                capture.isCapturingPhoto -> stringResource(R.string.capturando)
+                capture.isStreaming -> stringResource(R.string.camara_activa)
+                else -> stringResource(R.string.camara_en_reposo)
             }, color = if (capture.isStreaming) accent else Muted, style = MaterialTheme.typography.labelMedium)
         }
         if (battery != null) LinearProgressIndicator(progress = { battery / 100f }, modifier = Modifier.fillMaxWidth().height(4.dp),
             color = accent, trackColor = Line)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!hardware.isRegistered) Button(onClick = connect, enabled = !hardware.isRegistering, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Outlined.Bluetooth, null, Modifier.size(17.dp)); Spacer(Modifier.width(5.dp)); Text("Vincular")
+                Icon(Icons.Outlined.Bluetooth, null, Modifier.size(17.dp)); Spacer(Modifier.width(5.dp)); Text(stringResource(R.string.vincular))
             }
             OutlinedButton(onClick = diagnose, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Outlined.MonitorHeart, null, Modifier.size(17.dp)); Spacer(Modifier.width(5.dp)); Text("Diagnóstico")
+                Icon(Icons.Outlined.MonitorHeart, null, Modifier.size(17.dp)); Spacer(Modifier.width(5.dp)); Text(stringResource(R.string.diagnostico))
             }
         }
     }

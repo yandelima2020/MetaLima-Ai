@@ -91,12 +91,12 @@ internal fun storeCapture(context: Context, image: Bitmap?, source: Uri?): Uri {
         put(MediaStore.MediaColumns.IS_PENDING, 1)
     }
     val resolver = context.contentResolver
-    val target = resolver.insert(collection, values) ?: error("No se pudo abrir la galería.")
+    val target = resolver.insert(collection, values) ?: error(context.interfaceString(R.string.no_se_pudo_abrir_la_3))
     try {
         resolver.openOutputStream(target)?.use { output ->
-            if (source != null) resolver.openInputStream(source)?.use { it.copyTo(output) } ?: error("El vídeo ya no está disponible.")
-            else check(image?.compress(Bitmap.CompressFormat.JPEG, 95, output) == true) { "No se pudo guardar la foto." }
-        } ?: error("No se pudo escribir la captura.")
+            if (source != null) resolver.openInputStream(source)?.use { it.copyTo(output) } ?: error(context.interfaceString(R.string.el_video_ya_no_esta))
+            else check(image?.compress(Bitmap.CompressFormat.JPEG, 95, output) == true) { context.interfaceString(R.string.no_se_pudo_guardar_la_5) }
+        } ?: error(context.interfaceString(R.string.no_se_pudo_escribir_la))
         resolver.update(target, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
         return target
     } catch (failure: Exception) {
@@ -107,7 +107,7 @@ internal fun storeCapture(context: Context, image: Bitmap?, source: Uri?): Uri {
 
 internal fun shareUri(context: Context, uri: Uri, type: String) {
     val intent = Intent(Intent.ACTION_SEND).setType(type).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(intent, "Compartir desde MetaLima Ai"))
+    context.startActivity(Intent.createChooser(intent, context.interfaceString(R.string.compartir_desde_metalima_ai)))
 }
 
 internal fun exportHistory(context: Context, turns: List<Turn>): Uri {
@@ -122,8 +122,8 @@ internal fun exportHistory(context: Context, turns: List<Turn>): Uri {
         var y = 80f
         fun heading(canvas: Canvas) {
             val mark = Paint(strong).apply { textSize = 24f; color = Color.rgb(19, 52, 44) }
-            canvas.drawText("MetaLima Ai · Historial", 40f, 49f, mark)
-            canvas.drawText("Página $pageNumber", 492f, 49f, normal)
+            canvas.drawText(context.interfaceString(R.string.metalima_ai_historial), 40f, 49f, mark)
+            canvas.drawText(context.interfaceString(R.string.pagina, pageNumber), 492f, 49f, normal)
         }
         fun line(value: String, paint: Paint = normal) {
             if (y > 800) {
@@ -147,11 +147,11 @@ internal fun exportHistory(context: Context, turns: List<Turn>): Uri {
             }
         }
         heading(page.canvas)
-        val date = DateFormat.getDateTimeInstance()
+        val date = DateFormat.getDateTimeInstance(DateFormat.DEFAULT, DateFormat.DEFAULT, context.interfaceLocale())
         turns.forEach { turn ->
             line(date.format(Date(turn.time)), strong)
-            paragraph("Tú · ${turn.user}")
-            paragraph("IA · ${turn.answer}")
+            paragraph(context.interfaceString(R.string.tu_2, turn.user))
+            paragraph(context.interfaceString(R.string.ia, turn.answer))
             line("")
         }
         document.finishPage(page)

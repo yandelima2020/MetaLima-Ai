@@ -2,6 +2,7 @@ package com.lima.metalima
 
 import android.Manifest.permission.BLUETOOTH_CONNECT
 import android.Manifest.permission.RECORD_AUDIO
+import android.content.Context
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -23,6 +24,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.interfaceContext())
+    }
+
     private val glasses: WearablesViewModel by viewModels()
     private val camera: CameraViewModel by viewModels { CameraViewModel.Factory(application, glasses) }
     private val assistant: AssistantViewModel by viewModels()
@@ -67,17 +72,17 @@ class MainActivity : ComponentActivity() {
         glasses.onPermissionsResult(mapOf(BLUETOOTH_CONNECT to true)) {
             Wearables.initialize(applicationContext).onFailure { error, _ ->
                 check(error == WearablesError.ALREADY_INITIALIZED) {
-                    "No se pudo iniciar Meta Wearables."
+                    getString(R.string.no_se_pudo_iniciar_meta)
                 }
             }
         }
     }.onFailure {
-        glasses.setRecentError("No se pudo iniciar la conexión. Comprueba que tienes Meta AI instalado y actualizado.")
+        glasses.setRecentError(getString(R.string.no_se_pudo_iniciar_la_3))
     }.isSuccess
 
     private fun registerGlasses() {
         if (initWearables()) runCatching { glasses.startRegistration(this) }.onFailure {
-            glasses.setRecentError("No se pudo abrir Meta AI. Comprueba la conexión y el modo desarrollador.")
+            glasses.setRecentError(getString(R.string.no_se_pudo_abrir_meta))
         }
     }
 

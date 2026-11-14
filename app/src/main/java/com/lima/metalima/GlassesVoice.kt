@@ -25,11 +25,11 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TURN_DURATION_MS = 12_000L
 
-internal class GlassesVoice(context: Context) {
+internal class GlassesVoice(private val context: Context) {
     private val app = context.applicationContext
     private val audioManager = app.getSystemService(AudioManager::class.java)
 
-    fun selectHeadset(names: List<String>): AudioDeviceInfo = selectGlassesDevice(audioManager, names)
+    fun selectHeadset(names: List<String>): AudioDeviceInfo = selectGlassesDevice(context, audioManager, names)
 
     suspend fun record(headset: AudioDeviceInfo, finish: CompletableDeferred<Unit>, ready: () -> Unit): ByteArray {
         val samples = ByteArrayOutputStream()
@@ -39,16 +39,16 @@ internal class GlassesVoice(context: Context) {
         withContext(Dispatchers.IO) {
             try {
                 check(input.prepare(headset) && input.startCapture(firstBuffer, samples, maxBytes)) {
-                    "No se pudo abrir el micrófono Bluetooth de las gafas. Comprueba que Llamadas esté activado."
+                    context.interfaceString(R.string.no_se_pudo_abrir_el_2)
                 }
                 coroutineScope {
                     val interruption = launch {
                         input.wasInterrupted.first { it }
-                        error("Se interrumpió el micrófono Bluetooth. Vuelve a conectar las gafas e inténtalo de nuevo.")
+                        error(context.interfaceString(R.string.se_interrumpio_el_microfono_bluetooth))
                     }
                     try {
                         check(withTimeoutOrNull(4_000) { firstBuffer.await(); true } == true) {
-                            "El micrófono Bluetooth no envió audio. Comprueba la conexión de las gafas."
+                            context.interfaceString(R.string.el_microfono_bluetooth_no_envio)
                         }
                         withContext(Dispatchers.Main) { ready() }
                         withTimeoutOrNull(TURN_DURATION_MS) { finish.await() }
@@ -62,7 +62,7 @@ internal class GlassesVoice(context: Context) {
         }
         val pcm = synchronized(samples) { samples.toByteArray() }
         check(pcm.size >= AudioInputHandler.SAMPLE_RATE / 2) {
-            "La grabación es muy corta. Espera a que aparezca «Escuchando» y vuelve a hablar."
+            context.interfaceString(R.string.la_grabacion_es_muy_corta)
         }
         return pcmToWav(pcm)
     }
@@ -95,7 +95,7 @@ internal class GlassesVoice(context: Context) {
                     if (speaker.synthesizeToFile(answer.take(1800), Bundle(), file, id) != TextToSpeech.SUCCESS) complete(false)
                 }
             }
-            check(synthesized == true && file.length() > 44) { "Android no pudo generar el audio de la respuesta. Revisa la voz seleccionada en Android." }
+            check(synthesized == true && file.length() > 44) { context.interfaceString(R.string.android_no_pudo_generar_el) }
             play(file, headset)
         } finally {
             speaker.stop()
@@ -110,7 +110,7 @@ internal class GlassesVoice(context: Context) {
             it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP &&
                 (it.productName.toString() == headset.productName.toString() ||
                     headset.address.isNotBlank() && it.address.equals(headset.address, ignoreCase = true))
-        } ?: error("Activa Audio multimedia para las gafas en Bluetooth. La respuesta está en la conversación.")
+        } ?: error(context.interfaceString(R.string.activa_audio_multimedia_para_las))
         val player = MediaPlayer()
         try {
             val played = withTimeoutOrNull(180_000) {
@@ -119,7 +119,7 @@ internal class GlassesVoice(context: Context) {
                     player.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                     player.setDataSource(file.absolutePath)
-                    check(player.setPreferredDevice(output)) { "Android no pudo seleccionar las gafas como salida de audio." }
+                    check(player.setPreferredDevice(output)) { context.interfaceString(R.string.android_no_pudo_seleccionar_las) }
                     player.setOnErrorListener { _, _, _ -> complete(false); true }
                     player.setOnCompletionListener { complete(true) }
                     player.setOnPreparedListener {
@@ -128,14 +128,14 @@ internal class GlassesVoice(context: Context) {
                     player.prepareAsync()
                 }
             }
-            check(played == true) { "No se pudo reproducir la respuesta en las gafas." }
+            check(played == true) { context.interfaceString(R.string.no_se_pudo_reproducir_la_2) }
         } finally {
             player.release()
         }
     }
 }
 
-internal fun selectGlassesDevice(manager: AudioManager, names: List<String>, allowBle: Boolean = false): AudioDeviceInfo {
+internal fun selectGlassesDevice(context: Context, manager: AudioManager, names: List<String>, allowBle: Boolean = false): AudioDeviceInfo {
     val headsets = manager.availableCommunicationDevices.filter {
         it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || (allowBle && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET)
     }
@@ -143,8 +143,8 @@ internal fun selectGlassesDevice(manager: AudioManager, names: List<String>, all
         names.any { it.isNotBlank() && it.equals(headset.productName.toString(), ignoreCase = true) }
     }
     return matched.singleOrNull() ?: headsets.singleOrNull()
-        ?: error(if (headsets.isEmpty()) "Conecta las gafas por Bluetooth y activa Llamadas en los ajustes del dispositivo."
-            else "Hay varias salidas Bluetooth. Desconecta los demás auriculares para usar las gafas.")
+        ?: error(if (headsets.isEmpty()) context.interfaceString(R.string.conecta_las_gafas_por_bluetooth)
+            else context.interfaceString(R.string.hay_varias_salidas_bluetooth_desconecta))
 }
 
 private fun pcmToWav(pcm: ByteArray): ByteArray {

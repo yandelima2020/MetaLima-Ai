@@ -8,6 +8,7 @@
 
 package com.lima.metalima.stream
 
+import com.lima.metalima.interfaceString
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -125,11 +126,11 @@ class StreamingService : Service() {
   private fun createNotificationChannel() {
     val channel = NotificationChannel(
         CHANNEL_ID,
-        getString(R.string.notification_channel_name),
+        interfaceString(R.string.notification_channel_name),
         NotificationManager.IMPORTANCE_LOW,
     )
         .apply {
-          description = getString(R.string.notification_channel_description)
+          description = interfaceString(R.string.notification_channel_description)
           setShowBadge(false)
         }
 
@@ -149,8 +150,8 @@ class StreamingService : Service() {
         )
 
     return NotificationCompat.Builder(this, CHANNEL_ID)
-        .setContentTitle(getString(R.string.notification_title))
-        .setContentText(getString(R.string.notification_body))
+        .setContentTitle(interfaceString(R.string.notification_title))
+        .setContentText(interfaceString(R.string.notification_body))
         .setSmallIcon(R.drawable.smart_glasses_icon)
         .setOngoing(true)
         .setContentIntent(pendingIntent)

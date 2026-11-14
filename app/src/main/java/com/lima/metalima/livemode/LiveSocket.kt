@@ -1,5 +1,9 @@
 package com.lima.metalima.livemode
 
+import android.content.Context
+
+import com.lima.metalima.interfaceString
+import com.lima.metalima.R
 import android.util.Base64
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
@@ -42,7 +46,7 @@ internal data class Translation(val from: String, val to: String) {
 }
 internal data class LiveTool(val name: String, val description: String, val parameters: JSONObject? = null)
 
-internal class LiveSocket(key: String, private val model: LiveModel, resumptionHandle: String?,
+internal class LiveSocket(private val context: Context, key: String, private val model: LiveModel, resumptionHandle: String?,
     language: AppLanguage, translation: Translation? = null, tools: List<LiveTool> = emptyList()) {
     val ready = CompletableDeferred<Unit>()
     val messages = Channel<JSONObject>(128)
@@ -51,7 +55,7 @@ internal class LiveSocket(key: String, private val model: LiveModel, resumptionH
         object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 if (!webSocket.send(liveSetup(model, resumptionHandle, language, translation, tools).toString())) {
-                    fail(LiveConnectionError("No se pudo iniciar la sesión con ${model.provider.label}.", true))
+                    fail(LiveConnectionError(context.interfaceString(R.string.no_se_pudo_iniciar_la_2, model.provider.label), true))
                 }
             }
 
@@ -68,10 +72,10 @@ internal class LiveSocket(key: String, private val model: LiveModel, resumptionH
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 fail(when (response?.code) {
-                    400, 404 -> LiveConnectionError("${model.provider.label} no ofreció acceso a ${model.label}. Prueba otro modelo.", false)
-                    401, 403 -> LiveConnectionError("${model.provider.label} rechazó la clave o el acceso a este modelo. Revisa tu proyecto y la clave en Ajustes.", false)
-                    429 -> LiveConnectionError("Se agotó la cuota de ${model.provider.label}. Revisa los límites de tu proyecto.", false)
-                    else -> LiveConnectionError("Se perdió la conexión con ${model.provider.label}. Comprueba Internet.", true)
+                    400, 404 -> LiveConnectionError(context.interfaceString(R.string.no_ofrecio_acceso_a_prueba, model.provider.label, model.label), false)
+                    401, 403 -> LiveConnectionError(context.interfaceString(R.string.rechazo_la_clave_o_el, model.provider.label), false)
+                    429 -> LiveConnectionError(context.interfaceString(R.string.se_agoto_la_cuota_de, model.provider.label), false)
+                    else -> LiveConnectionError(context.interfaceString(R.string.se_perdio_la_conexion_con, model.provider.label), true)
                 })
             }
         }
@@ -103,7 +107,7 @@ internal class LiveSocket(key: String, private val model: LiveModel, resumptionH
 
     private fun receive(raw: String) {
         val event = runCatching { JSONObject(raw) }.getOrElse {
-            fail(LiveConnectionError("El proveedor devolvió un mensaje que no se pudo leer.", true))
+            fail(LiveConnectionError(context.interfaceString(R.string.el_proveedor_devolvio_un_mensaje), true))
             return
         }
         val type = event.optString("type")
@@ -113,7 +117,7 @@ internal class LiveSocket(key: String, private val model: LiveModel, resumptionH
             if (code != "conversation_item_truncate_error" && code != "response_cancel_not_active") fail(socketError(1008, code))
             return
         }
-        if (!messages.trySend(event).isSuccess) fail(LiveConnectionError("Se saturó la conexión de audio.", true))
+        if (!messages.trySend(event).isSuccess) fail(LiveConnectionError(context.interfaceString(R.string.se_saturo_la_conexion_de), true))
     }
 
     private fun fail(error: LiveConnectionError) {
@@ -123,10 +127,10 @@ internal class LiveSocket(key: String, private val model: LiveModel, resumptionH
 
     private fun socketError(code: Int, reason: String): LiveConnectionError = when {
         reason.contains("quota", true) || reason.contains("resource exhausted", true) || reason.contains("rate_limit", true) ->
-            LiveConnectionError("Se agotó la cuota de ${model.provider.label}. Revisa los límites de tu proyecto.", false)
+            LiveConnectionError(context.interfaceString(R.string.se_agoto_la_cuota_de, model.provider.label), false)
         code == 1008 || code == 1003 || code == 1007 ->
-            LiveConnectionError("${model.provider.label} rechazó la sesión de ${model.label}. Comprueba el acceso al modelo, la clave y los límites del proyecto.", false)
-        else -> LiveConnectionError("Se interrumpió la conexión con ${model.provider.label} (código $code).", true)
+            LiveConnectionError(context.interfaceString(R.string.rechazo_la_sesion_de_comprueba, model.provider.label, model.label), false)
+        else -> LiveConnectionError(context.interfaceString(R.string.se_interrumpio_la_conexion_con, model.provider.label, code), true)
     }
 
     private companion object {
