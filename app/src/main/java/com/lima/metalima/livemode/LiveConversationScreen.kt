@@ -41,11 +41,20 @@ import com.lima.metalima.R
         if (!state.active) {
             var expanded by remember { mutableStateOf(false) }
             Box {
-                OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selected.displayLabel()) }
+                OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 5.dp)) {
+                    AssistantIcon(selected.provider, 19)
+                    Spacer(Modifier.width(8.dp))
+                    Text(selected.displayLabel())
+                }
                 DropdownMenu(expanded, { expanded = false }, modifier = Modifier.heightIn(max = 380.dp)) {
-                    listOf("Google Gemini", "OpenAI").forEach { provider ->
-                        Text(provider, color = Lime, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(12.dp))
-                        LiveModel.entries.filter { it.provider.label == provider }.forEach { model ->
+                    listOf(Provider.GEMINI, Provider.OPENAI).forEach { provider ->
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AssistantIcon(provider, 19)
+                            Text(provider.label, color = Lime, style = MaterialTheme.typography.labelMedium)
+                        }
+                        LiveModel.entries.filter { it.provider == provider }.forEach { model ->
                             DropdownMenuItem(text = { Text(model.displayLabel()) }, onClick = { select(model); expanded = false })
                         }
                     }

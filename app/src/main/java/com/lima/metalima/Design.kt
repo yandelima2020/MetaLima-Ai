@@ -121,8 +121,7 @@ internal enum class Skin(val label: Int, val background: Long, val surface: Long
         verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
 }
 
-@Composable internal fun DeviceArt(modifier: Modifier = Modifier) {
-    val accent = Lime
+@Composable internal fun DeviceArt(modifier: Modifier = Modifier, accent: Color = Lime) {
     Canvas(modifier) {
         val w = size.width
         val h = size.height

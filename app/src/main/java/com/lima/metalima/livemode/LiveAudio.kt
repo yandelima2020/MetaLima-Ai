@@ -24,6 +24,7 @@ import kotlinx.coroutines.isActive
 
 private const val OUTPUT_RATE = 24_000
 private const val MAX_QUEUED_BYTES = OUTPUT_RATE * 2 * 30
+internal data class AudioSignalTest(val input: AudioDeviceInfo, val output: AudioDeviceInfo, val hasSignal: Boolean)
 
 /** One Android communications route for both directions, held until the session finishes. */
 internal class LiveAudio(private val context: Context, private val inputRate: Int) : AutoCloseable {
@@ -150,9 +151,8 @@ internal class LiveAudio(private val context: Context, private val inputRate: In
 
     fun enqueuedFrames(): Long = synchronized(playbackLock) { writtenFrames + pendingSize / 2 }
 
-    suspend fun testSignal(): Boolean = withContext(Dispatchers.IO) {
+    suspend fun testSignal(): AudioSignalTest = withContext(Dispatchers.IO) {
         val microphone = checkNotNull(record)
-        val speaker = checkNotNull(track)
         val samples = ShortArray(inputRate / 20)
         var peak = 0
         val until = android.os.SystemClock.elapsedRealtime() + 1600
@@ -163,13 +163,42 @@ internal class LiveAudio(private val context: Context, private val inputRate: In
             for (i in 0 until count) peak = maxOf(peak, kotlin.math.abs(samples[i].toInt()))
             delay(24)
         }
-        val tone = ShortArray(OUTPUT_RATE / 3) { i ->
-            val edge = minOf(1f, i / 240f, (OUTPUT_RATE / 3 - i) / 240f)
-            (kotlin.math.sin(i * 2 * Math.PI * 660 / OUTPUT_RATE) * 6000 * edge).toInt().toShort()
+        verifyRoute()
+        val input = microphone.routedDevice?.takeIf { it.type == inputDeviceType }
+            ?: error(context.interfaceString(R.string.el_microfono_dejo_de_usar))
+        AudioSignalTest(input, playCue(330, 660), peak > 300)
+    }
+
+    suspend fun playCue(durationMs: Int = 180, frequency: Int = 760): AudioDeviceInfo = withContext(Dispatchers.IO) {
+        val speaker = checkNotNull(track)
+        val sampleCount = OUTPUT_RATE * durationMs / 1000
+        val tone = ShortArray(sampleCount) { i ->
+            val edge = minOf(1f, i / 240f, (sampleCount - i) / 240f)
+            (kotlin.math.sin(i * 2 * Math.PI * frequency / OUTPUT_RATE) * 6000 * edge).toInt().toShort()
         }
-        check(speaker.write(tone, 0, tone.size, AudioTrack.WRITE_BLOCKING) > 0) { context.interfaceString(R.string.android_no_pudo_reproducir_el) }
-        delay(400)
-        peak > 300
+        check(withTimeoutOrNull(1_200) {
+            var written = 0
+            while (written < tone.size) {
+                verifyRoute()
+                val count = speaker.write(tone, written, tone.size - written, AudioTrack.WRITE_NON_BLOCKING)
+                if (count < 0) return@withTimeoutOrNull false
+                written += count
+                if (written < tone.size) delay(8)
+            }
+            true
+        } == true) {
+            context.interfaceString(R.string.android_no_pudo_reproducir_el)
+        }
+        val output = withTimeoutOrNull(1_000) {
+            while (speaker.routedDevice?.id != deviceId) {
+                verifyRoute()
+                delay(25)
+            }
+            speaker.routedDevice
+        } ?: error(context.interfaceString(R.string.audio_output_unverified))
+        delay(durationMs.toLong() + 70)
+        verifyRoute()
+        output
     }
 
     suspend fun play(speaking: (Boolean) -> Unit) = withContext(Dispatchers.IO) {

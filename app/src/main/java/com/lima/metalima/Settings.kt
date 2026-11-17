@@ -22,23 +22,19 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lima.metalima.wearables.WearablesViewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @Composable internal fun StudioSettings(activity: MainActivity, glasses: WearablesViewModel, ai: AssistantViewModel, prefs: StudioPrefs, speaks: Boolean, setSpeaks: (Boolean) -> Unit,
-    language: AppLanguage, setLanguage: (AppLanguage) -> Unit, phrase: String, setPhrase: (String) -> Unit, notify: (String) -> Unit, providerToConfigure: Provider? = null,
-    skin: Skin, setSkin: (Skin) -> Unit) {
+    language: AppLanguage, setLanguage: (AppLanguage) -> Unit, phrase: String, setPhrase: (String) -> Unit, notify: (String) -> Unit,
+    skin: Skin, setSkin: (Skin) -> Unit, streamFormat: VideoFormat, setStreamFormat: (VideoFormat) -> Unit) {
     val device by glasses.uiState.collectAsStateWithLifecycle()
-    val state by ai.state.collectAsStateWithLifecycle()
-    var provider by remember(state.provider, providerToConfigure) { mutableStateOf(providerToConfigure ?: state.provider) }
-    var model by remember(provider) { mutableStateOf(ai.configuredModel(provider)) }
-    var key by remember(provider) { mutableStateOf("") }
-    var workspace by remember { mutableStateOf(ai.workspace) }
-    var china by remember { mutableStateOf(ai.china) }
+    val scope = rememberCoroutineScope()
     var platform by remember { mutableStateOf(prefs.platform) }
     var url by remember(platform) { mutableStateOf(prefs.url(platform)) }
     var streamKey by remember(platform) { mutableStateOf("") }
     var quality by remember { mutableStateOf(prefs.quality) }
     var fps by remember { mutableIntStateOf(prefs.fps) }
-    var landscape by remember { mutableStateOf(prefs.landscape) }
     var rate by remember { mutableFloatStateOf(prefs.voiceRate) }
     var pitch by remember { mutableFloatStateOf(prefs.pitch) }
     var advancedCamera by rememberSaveable { mutableStateOf(false) }
@@ -81,7 +77,11 @@ import com.lima.metalima.wearables.WearablesViewModel
     Section(stringResource(R.string.gafas_y_sistema))
     ActionTile(Icons.Outlined.Bluetooth, if (device.isRegistered) stringResource(R.string.desvincular_mis_gafas) else stringResource(R.string.vincular_mis_gafas),
         if (device.isRegistering) stringResource(R.string.vinculacion_en_curso) else if (device.hasActiveDevice) stringResource(R.string.dispositivo_activo) else stringResource(R.string.conexion_con_meta_ai)) {
-        if (device.isRegistered) runCatching { glasses.startUnregistration(activity) }.onFailure { notify(activity.getString(R.string.no_se_pudo_abrir_meta_2)) }
+        if (device.isRegistered) scope.launch {
+            HandsFreeService.disable(activity)
+            HandsFreeService.state.first { !it.ownsMicrophone }
+            runCatching { glasses.startUnregistration(activity) }.onFailure { notify(activity.getString(R.string.no_se_pudo_abrir_meta_2)) }
+        }
         else if (!device.isRegistering) activity.connectGlasses()
     }
     ActionTile(Icons.Outlined.Devices, stringResource(R.string.dispositivos_conectados), stringResource(R.string.detectados, device.devices.size)) { devices = !devices }
@@ -109,7 +109,7 @@ import com.lima.metalima.wearables.WearablesViewModel
         }
         if (quality != "FLUIDA") Choice(stringResource(R.string.fotogramas_por_segundo), "$fps", listOf("15", "24", "30")) { fps = it.toInt(); prefs.fps = fps }
         else Text(stringResource(R.string.parte_de_fps_y_baja), color = Muted)
-        SwitchRow(stringResource(R.string.emision_en_horizontal), landscape) { landscape = it; prefs.landscape = it }
+        VideoFormatControls(streamFormat, true, setStreamFormat)
         Text(stringResource(R.string.reabre_la_camara_para_aplicar), color = Muted)
     }
     ActionTile(Icons.Outlined.MonitorHeart, stringResource(R.string.estado_del_sistema), stringResource(R.string.permisos_bluetooth_y_bateria)) { system = !system }
@@ -123,28 +123,7 @@ import com.lima.metalima.wearables.WearablesViewModel
         TextButton(onClick = { activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${activity.packageName}"))) }) { Text(stringResource(R.string.permisos_y_bateria_en_android)) }
     }
     Section(stringResource(R.string.inteligencia_artificial))
-    Block {
-        Choice(stringResource(R.string.plataforma_de_ia), provider.label, Provider.entries.map { it.label }) { name -> provider = Provider.entries.first { it.label == name } }
-        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.modelo_de, provider.label)) }, singleLine = true)
-        OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.clave_api_de, provider.label)) },
-            placeholder = { Text(if (provider == state.provider && state.hasKey) stringResource(R.string.clave_guardada) else stringResource(R.string.pega_tu_clave)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-        if (provider == Provider.QWEN) {
-            OutlinedTextField(workspace, { workspace = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.id_del_espacio_de_alibaba)) })
-            val regionSingapore = stringResource(R.string.region_singapore)
-            val regionChina = stringResource(R.string.china_pekin)
-            Choice(stringResource(R.string.region_del_espacio), if (china) regionChina else regionSingapore,
-                listOf(regionSingapore, regionChina)) { china = it == regionChina }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(enabled = !state.busy, onClick = {
-                if (providerToConfigure == provider && key.isNotBlank()) ai.saveKey(provider, key)
-                else ai.configure(provider, key, model, workspace, china)
-                key = ""
-            }) { Text(stringResource(R.string.guardar)) }
-            OutlinedButton(enabled = !state.busy && state.hasKey && provider == state.provider && key.isBlank() && model == ai.configuredModel(provider), onClick = ai::checkConnection) { Text(stringResource(R.string.probar_conexion)) }
-        }
-        if (state.hasKey && state.provider == provider) TextButton(enabled = !state.busy, onClick = { ai.forgetKey(provider); key = "" }) { Text(stringResource(R.string.eliminar_clave_guardada)) }
-    }
+    AssistantSettings(activity, ai, notify)
     ActionTile(Icons.Outlined.RecordVoiceOver, stringResource(R.string.ajustes_avanzados_de_ia), stringResource(R.string.lectura_de_respuestas_velocidad_y)) { advancedAi = !advancedAi }
     if (advancedAi) Block {
         SwitchRow(stringResource(R.string.leer_respuestas_en_voz_alta), speaks, change = setSpeaks)
@@ -184,7 +163,65 @@ import com.lima.metalima.wearables.WearablesViewModel
         TextButton(onClick = { streamFps = 24; prefs.streamFps = 24; streamAudio = "Automática"; prefs.streamAudio = streamAudio }) { Text(stringResource(R.string.restablecer_valores)) }
     }
     Section(stringResource(R.string.acerca_de))
-    Text("MetaLima Ai · 0.4.0", color = Muted)
+    Text(stringResource(R.string.app_name) + " · 0.5.0", color = Muted)
+    TextButton(onClick = { openGithubRelease(activity) }) { Text(stringResource(R.string.update_releases)) }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable internal fun AssistantSettings(
+    activity: MainActivity, ai: AssistantViewModel, notify: (String) -> Unit, initialProvider: Provider? = null
+) {
+    val state by ai.state.collectAsStateWithLifecycle()
+    var provider by rememberSaveable(initialProvider) { mutableStateOf(initialProvider ?: state.provider) }
+    var model by remember(provider) { mutableStateOf(ai.configuredModel(provider)) }
+    var key by remember(provider) { mutableStateOf("") }
+    var workspace by remember(provider) { mutableStateOf(ai.workspace) }
+    var china by remember(provider) { mutableStateOf(ai.china) }
+    var museEndpoint by remember(provider) { mutableStateOf(ai.museUrl) }
+    val hasKey = provider in state.configuredProviders
+    Block {
+        Text(stringResource(R.string.plataforma_de_ia), color = Muted)
+        AssistantChoice(provider, state, enabled = !state.busy) { provider = it }
+        if (provider == Provider.MUSE) {
+            Text(stringResource(R.string.muse_api_summary), color = Muted)
+            TextButton(onClick = { openMuseWebsite(activity, notify) }) { Text(stringResource(R.string.muse_open_web)) }
+            OutlinedTextField(museEndpoint, { museEndpoint = it }, Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.muse_api_url)) }, singleLine = true)
+        }
+        OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.modelo_de, provider.label)) }, singleLine = true)
+        OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.clave_api_de, provider.label)) },
+            placeholder = { Text(stringResource(if (hasKey) R.string.clave_guardada else R.string.pega_tu_clave)) },
+            singleLine = true, visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
+        if (provider == Provider.QWEN) {
+            OutlinedTextField(workspace, { workspace = it }, Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(stringResource(R.string.id_del_espacio_de_alibaba)) })
+            val regionSingapore = stringResource(R.string.region_singapore)
+            val regionChina = stringResource(R.string.china_pekin)
+            Choice(stringResource(R.string.region_del_espacio), if (china) regionChina else regionSingapore,
+                listOf(regionSingapore, regionChina)) { china = it == regionChina }
+        }
+        val dirty = key.isNotBlank() || model != ai.configuredModel(provider) ||
+            provider == Provider.MUSE && museEndpoint != ai.museUrl ||
+            provider == Provider.QWEN && (workspace != ai.workspace || china != ai.china)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Button(enabled = !state.busy, onClick = {
+                if (ai.configure(provider, key, model, workspace, china, museEndpoint, activate = initialProvider == null)) {
+                    key = ""
+                    model = ai.configuredModel(provider)
+                    museEndpoint = ai.museUrl
+                    workspace = ai.workspace
+                }
+            }) { Text(stringResource(R.string.guardar)) }
+            OutlinedButton(enabled = !state.busy && hasKey && !dirty, onClick = { ai.checkConnection(provider) }) {
+                Text(stringResource(R.string.probar_conexion))
+            }
+        }
+        if (hasKey) TextButton(enabled = !state.busy, onClick = { ai.forgetKey(provider); key = "" }) {
+            Text(stringResource(R.string.eliminar_clave_guardada))
+        }
+    }
 }
 
 @Composable internal fun Choice(label: String, selected: String, items: List<String>,

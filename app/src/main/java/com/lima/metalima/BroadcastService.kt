@@ -59,11 +59,16 @@ internal class BroadcastService : Service() {
         }
         val audio = intent.getBooleanExtra("audio", false)
         try {
+            val framing = VideoFraming.entries.firstOrNull { it.name == intent.getStringExtra("framing") } ?: VideoFraming.ORIGINAL
+            val filter = if (framing != VideoFraming.ORIGINAL) ProjectionFraming(
+                intent.getFloatExtra("capturedAspect", 9 / 16f).takeIf { it > 0f } ?: 9 / 16f,
+                intent.getFloatExtra("videoAspect", 0f), framing
+            ) else null
             startForeground(204, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
                 if (audio) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
             if (audio) routeAudio(intent.getStringExtra("route").orEmpty())
             current.value = Transmission(true, if (record) interfaceString(R.string.grabando_visor) else interfaceString(R.string.conectando_con_la_plataforma), record)
-            val encoder = RtmpDisplay(this, false, object : ConnectChecker {
+            val encoder = RtmpDisplay(this, filter != null, object : ConnectChecker {
                 override fun onConnectionStarted(url: String) = Unit
                 override fun onConnectionSuccess() { main.post { if (display != null) current.value = Transmission(true, interfaceString(R.string.emision_en_directo)) } }
                 override fun onConnectionFailed(reason: String) { main.post { if (display != null) finish(interfaceString(R.string.el_servidor_rechazo_la_emision)) } }
@@ -77,9 +82,13 @@ internal class BroadcastService : Service() {
             val width = if (wide) 1280 else 720
             encoder.setMediaProjectionCallback(object : MediaProjection.Callback() {
                 override fun onStop() { main.post { if (display != null) finish(interfaceString(R.string.se_ha_detenido_la_captura)) } }
+                override fun onCapturedContentResize(width: Int, height: Int) {
+                    if (width > 0 && height > 0) filter?.capturedAspect = width.toFloat() / height
+                }
             })
             check(encoder.prepareVideo(width, height, intent.getIntExtra("fps", 24), 3_000_000, 0, resources.displayMetrics.densityDpi))
             if (audio) check(encoder.prepareAudio(96_000, 44100, false))
+            if (filter != null) encoder.glInterface.setFilter(filter)
             encoder.setIntentResult(Activity.RESULT_OK, token)
             if (record) {
                 val dir = File(cacheDir, "recordings").apply { mkdirs() }

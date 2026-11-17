@@ -17,9 +17,12 @@ import android.widget.VideoView
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -85,6 +90,8 @@ import kotlinx.coroutines.withTimeoutOrNull
     val hardware by glasses.uiState.collectAsStateWithLifecycle()
     val capture by camera.uiState.collectAsStateWithLifecycle()
     val ai by assistant.state.collectAsStateWithLifecycle()
+    val handsFree by HandsFreeService.state.collectAsStateWithLifecycle()
+    var handsFreeGeminiAudio by remember { mutableStateOf(prefs.handsFreeGeminiAudio) }
     val live by BroadcastService.state.collectAsStateWithLifecycle()
     val conversationState by conversation.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -92,8 +99,18 @@ import kotlinx.coroutines.withTimeoutOrNull
     val snack = remember { SnackbarHostState() }
     var tab by rememberSaveable { mutableStateOf(0) }
     var page by rememberSaveable { mutableStateOf("") }
-    var liveProviderToConfigure by rememberSaveable { mutableStateOf<Provider?>(null) }
-    var liveModel by rememberSaveable { mutableStateOf(LiveModel.entries.firstOrNull { it.id == prefs.liveModel } ?: LiveModel.GEMINI_31) }
+    var sideChat by remember { mutableStateOf(false) }
+    val chatSlide = remember { Animatable(1f) }
+    var streamFormat by remember { mutableStateOf(prefs.streamFormat) }
+    var recordFormat by remember { mutableStateOf(prefs.recordFormat) }
+    var videoVoiceTarget by remember { mutableStateOf<VideoTarget?>(null) }
+    DisposableEffect(prefs) {
+        val formats = prefs.observeVideoFormats { recordFormat = prefs.recordFormat; streamFormat = prefs.streamFormat }
+        onDispose { formats.close() }
+    }
+    var providerToConfigure by rememberSaveable { mutableStateOf<Provider?>(null) }
+    var assistantSettingsReturn by rememberSaveable { mutableStateOf("") }
+    var liveModel by rememberSaveable { mutableStateOf(LiveModel.entries.firstOrNull { it.id == prefs.liveModel } ?: LiveModel.GEMINI_38) }
     var liveOnPhone by rememberSaveable { mutableStateOf(false) }
     var languageFrom by rememberSaveable { mutableStateOf("Español") }
     var languageTo by rememberSaveable { mutableStateOf("Inglés") }
@@ -153,7 +170,49 @@ import kotlinx.coroutines.withTimeoutOrNull
         onDispose { activity.lifecycle.removeObserver(observer) }
     }
     fun notify(message: String) { scope.launch { snack.showSnackbar(message) } }
-    fun go(route: String) { wake = false; creatorVoice = false; page = route; fullscreen = false }
+    fun needsFreeMicrophone(): Boolean {
+        if (!HandsFreeService.state.value.ownsMicrophone) return true
+        notify(activity.getString(R.string.handsfree_stop_first))
+        return false
+    }
+    fun go(route: String) {
+        wake = false
+        creatorVoice = false
+        videoVoiceTarget = null
+        if (route != "ai") sideChat = false
+        page = route
+        fullscreen = false
+    }
+    fun slideOpenChat() {
+        if (page.isNotEmpty() || tab != 0) return
+        scope.launch {
+            chatSlide.snapTo(0f)
+            sideChat = true
+            go("ai")
+            chatSlide.animateTo(1f, tween(225))
+        }
+    }
+    fun saveStreamFormat(value: VideoFormat) { streamFormat = value; prefs.streamFormat = value }
+    fun saveRecordFormat(value: VideoFormat) { recordFormat = value; prefs.recordFormat = value }
+    fun applyVideoVoice(command: VideoVoiceCommand) {
+        if (command.target == VideoTarget.STREAM) saveStreamFormat(streamFormat.copy(orientation = command.orientation))
+        else saveRecordFormat(recordFormat.copy(orientation = command.orientation))
+        notify(activity.getString(R.string.video_format_changed, activity.getString(command.orientation.label)))
+    }
+    fun configureAssistant(provider: Provider) {
+        assistantSettingsReturn = page
+        providerToConfigure = provider
+        go("assistant-settings")
+    }
+    fun openAssistant(provider: Provider) {
+        if (assistant.state.value.busy) return
+        if (provider != assistant.state.value.provider) {
+            draft = ""
+            image = null
+        }
+        assistant.selectProvider(provider)
+        go("ai")
+    }
     fun stopBroadcast() {
         activity.startService(Intent(activity, BroadcastService::class.java).setAction(BroadcastService.ACTION_STOP))
     }
@@ -169,10 +228,16 @@ import kotlinx.coroutines.withTimeoutOrNull
     fun finishPage() {
         wake = false
         creatorVoice = false
-        if (fullscreen) {
+        videoVoiceTarget = null
+        if (page == "assistant-settings") {
+            go(assistantSettingsReturn)
+            assistantSettingsReturn = ""
+            providerToConfigure = null
+        } else if (fullscreen) {
             if (live.active) stopBroadcast()
             fullscreen = false
         } else {
+            sideChat = false
             if (page == "conversation-live" || page == "translation") {
                 disableLiveVision()
                 conversation.stop()
@@ -224,6 +289,7 @@ import kotlinx.coroutines.withTimeoutOrNull
         }
     }
     fun startGlassesTurn() {
+        if (!needsFreeMicrophone()) return
         if (finishVoice != null || speaking || assistant.state.value.busy || capture.isRecording || live.active) return
         val finish = CompletableDeferred<Unit>()
         finishVoice = finish
@@ -267,6 +333,7 @@ import kotlinx.coroutines.withTimeoutOrNull
         }
     }
     fun startLiveConversation() {
+        if (!needsFreeMicrophone()) return
         if (!isLivePage || conversation.state.value.active || capture.isRecording || live.active) return
         scope.launch {
             if (!activity.requestMicrophone()) {
@@ -319,24 +386,76 @@ import kotlinx.coroutines.withTimeoutOrNull
     }
     val markingVoice = page == "creator" && creatorVoice && capture.isRecording && !capture.includeAudioInStream
     val canArmVoice = !isLivePage && page != "diagnostics" && !conversationState.active && !capture.isRecording &&
-        !live.active && !ai.busy && !dictating && finishVoice == null && !speaking && !audioTesting
+        !live.active && !ai.busy && !dictating && finishVoice == null && !speaking && !audioTesting && !handsFree.ownsMicrophone
     LaunchedEffect(canArmVoice, tab) { if (!canArmVoice || tab != 0) wake = false }
     LaunchedEffect(capture.isRecording, capture.includeAudioInStream) {
         if (!capture.isRecording || capture.includeAudioInStream) creatorVoice = false
     }
-    VoiceCommand(activity, markingVoice || (wake && canArmVoice && tab == 0 && page.isEmpty()),
-        if (markingVoice) language.markCommand else wakePhrase, language) { question, message ->
+    val formatVoice = videoVoiceTarget.takeIf { canArmVoice }
+    LaunchedEffect(canArmVoice) { if (!canArmVoice) videoVoiceTarget = null }
+    VoiceCommand(activity, markingVoice || formatVoice != null || (wake && canArmVoice && tab == 0 && page.isEmpty()),
+        if (markingVoice) language.markCommand else if (formatVoice != null) null else wakePhrase, language) { question, message ->
         wake = false
         creatorVoice = false
+        videoVoiceTarget = null
         message?.let(::notify)
         if (question == null) return@VoiceCommand
         if (markingVoice) {
             notify(if (camera.markRecording()) activity.getString(R.string.momento_marcado) else activity.getString(R.string.espera_al_primer_fotograma_o))
             return@VoiceCommand
         }
+        val videoCommand = videoVoiceCommand(question, formatVoice)
+        if (videoCommand != null) {
+            applyVideoVoice(videoCommand)
+            return@VoiceCommand
+        }
+        if (formatVoice != null) {
+            notify(activity.getString(R.string.video_format_not_recognized))
+            return@VoiceCommand
+        }
         go("ai")
         if (question.isNotBlank() && ai.hasKey) submit(question)
         else if (question.isNotBlank()) draft = question
+    }
+    fun armVideoFormat(target: VideoTarget) {
+        if (videoVoiceTarget != null) { videoVoiceTarget = null; return }
+        if (!canArmVoice || voiceCommandPending) return
+        wake = false
+        voiceCommandPending = true
+        val currentPage = page
+        scope.launch {
+            try {
+                if (activity.requestMicrophone() && page == currentPage) videoVoiceTarget = target
+            } finally { voiceCommandPending = false }
+        }
+    }
+    fun startHandsFree() {
+        val currentPermissions = listOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.BLUETOOTH_CONNECT)
+        if (currentPermissions.any { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }) {
+            notify(activity.getString(R.string.handsfree_permissions))
+            return
+        }
+        if (!canArmVoice || !activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        wake = false
+        videoVoiceTarget = null
+        runCatching {
+            activity.startForegroundService(Intent(activity, HandsFreeService::class.java).putStringArrayListExtra(
+                HandsFreeService.GLASSES, ArrayList(hardware.deviceDetails.values.map { it.name })))
+        }.onFailure { notify(activity.getString(R.string.handsfree_error)) }
+    }
+    val handsFreePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startHandsFree() }
+    fun toggleHandsFree() {
+        if (HandsFreeService.state.value.enabled) {
+            HandsFreeService.disable(activity)
+            return
+        }
+        if (!canArmVoice || voiceCommandPending) return
+        val permissions = buildList {
+            add(Manifest.permission.RECORD_AUDIO)
+            add(Manifest.permission.BLUETOOTH_CONNECT)
+            if (android.os.Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+        }.filter { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (permissions.isEmpty()) startHandsFree() else handsFreePermissions.launch(permissions.toTypedArray())
     }
     fun armVoiceCommand(mark: Boolean) {
         if (voiceCommandPending) return
@@ -367,30 +486,43 @@ import kotlinx.coroutines.withTimeoutOrNull
             noteDictation.launch(dictationRequest(language))
         }.onFailure { dictating = false; notify(activity.getString(R.string.android_no_ofrece_un_servicio)) }
     }
-    fun runAudioTest() {
+    fun runAudioTest(usePhone: Boolean) {
         if (audioTesting) return
-        if (capture.isRecording || live.active) { notify(activity.getString(R.string.deten_la_grabacion_o_emision)); return }
+        if (!needsFreeMicrophone()) return
+        if (capture.isRecording || live.active || conversationState.active || listening || speaking) {
+            notify(activity.getString(R.string.deten_la_grabacion_o_emision))
+            return
+        }
         audioTesting = true
         audioTest = scope.launch {
             val audio = LiveAudio(activity, 16_000)
             audioResult = null
             try {
                 check(activity.requestMicrophone()) { activity.getString(R.string.permite_el_microfono_para_realizar) }
-                check(activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                check(usePhone || activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                     activity.getString(R.string.vincula_las_gafas_o_concede)
                 }
-                val route = audio.open(hardware.deviceDetails.values.map { it.name }, false)
+                audio.open(hardware.deviceDetails.values.map { it.name }, usePhone)
                 audioResult = activity.getString(R.string.habla_ahora_despues_sonara_un)
-                val signal = audio.testSignal()
-                audioResult = activity.getString(R.string.salida_confirma_si_oiste_el, if (signal) activity.getString(R.string.se_detecto_senal_del_microfono) else activity.getString(R.string.no_se_detecto_voz_suficiente), route)
+                val result = audio.testSignal()
+                val signal = activity.getString(if (result.hasSignal) R.string.se_detecto_senal_del_microfono else R.string.no_se_detecto_voz_suficiente)
+                val input = if (usePhone) activity.getString(R.string.microfono) else result.input.productName.toString()
+                val output = if (usePhone) activity.getString(R.string.route_phone) else result.output.productName.toString()
+                audioResult = activity.getString(R.string.audio_test_result, signal, input, output)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) { audioResult = error.message ?: activity.getString(R.string.no_se_pudo_probar_el) }
             finally {
-                withContext(NonCancellable + Dispatchers.IO) { audio.close() }
-                audioTesting = false
+                withContext(NonCancellable) {
+                    try { withContext(Dispatchers.IO) { audio.close() } }
+                    finally { audioTesting = false }
+                }
             }
         }
+    }
+    val diagnosisBluetooth = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (it && page == "diagnostics") runAudioTest(false)
+        else if (!it) notify(activity.getString(R.string.vincula_las_gafas_o_concede))
     }
     fun runApiTest() {
         if (apiTesting) return
@@ -452,14 +584,22 @@ import kotlinx.coroutines.withTimeoutOrNull
         val token = result.data
         if (result.resultCode == Activity.RESULT_OK && token != null && (endpoint != null || record)) {
             runCatching {
+                val format = if (record) recordFormat else streamFormat
+                val orientation = if (format.orientation == VideoOrientation.ORIGINAL) streamFormat.orientation else format.orientation
+                val framing = if (format.orientation == VideoOrientation.ORIGINAL) VideoFraming.ORIGINAL else format.framing
+                val bounds = activity.windowManager.currentWindowMetrics.bounds
                 activity.startForegroundService(Intent(activity, BroadcastService::class.java).putExtra("consent", token)
-                    .putExtra("endpoint", endpoint).putExtra("record", record).putExtra("audio", audio).putExtra("landscape", prefs.landscape).putExtra("fps", if (record) prefs.fps else prefs.streamFps).putExtra("route", if (record) "Automática" else prefs.streamAudio))
+                    .putExtra("endpoint", endpoint).putExtra("record", record).putExtra("audio", audio)
+                    .putExtra("landscape", orientation == VideoOrientation.HORIZONTAL).putExtra("framing", framing.name)
+                    .putExtra("capturedAspect", bounds.width().toFloat() / bounds.height()).putExtra("videoAspect", capture.videoAspect)
+                    .putExtra("fps", if (record) prefs.fps else prefs.streamFps).putExtra("route", if (record) "Automática" else prefs.streamAudio))
                 go("cast")
                 fullscreen = true
             }.onFailure { notify(activity.getString(R.string.no_se_pudo_iniciar_el)) }
         }
     }
     fun startStream() {
+        if (audio && !needsFreeMicrophone()) return
         runCatching {
             val endpoint = prefs.streamAddress(prefs.platform)
             val url = URI(endpoint)
@@ -476,6 +616,7 @@ import kotlinx.coroutines.withTimeoutOrNull
         }.onFailure { notify(activity.getString(R.string.guarda_una_direccion_rtmp_o)) }
     }
     fun startInteractiveRecording() {
+        if (audio && !needsFreeMicrophone()) return
         val manager = activity.getSystemService(MediaProjectionManager::class.java)
         scope.launch {
             if (audio && !activity.requestMicrophone()) { notify(activity.getString(R.string.permite_el_microfono_o_desactiva)); return@launch }
@@ -511,18 +652,32 @@ import kotlinx.coroutines.withTimeoutOrNull
     LaunchedEffect(live.message, live.active) { if (!live.active && live.message.isNotBlank()) snack.showSnackbar(live.message) }
     BackHandler(page.isNotEmpty(), onBack = ::finishPage)
 
+    val homeSwipe = tab == 0 && page.isEmpty() && !capture.isRecording && !live.active
+    val closeSwipe = page == "ai" && sideChat
+    val swipeModifier = if (homeSwipe || closeSwipe) Modifier.pointerInput(homeSwipe, closeSwipe) {
+        var traveled = 0f
+        detectHorizontalDragGestures(onDragStart = { traveled = 0f }, onDragEnd = {
+            val threshold = 68.dp.toPx()
+            if (homeSwipe && traveled > threshold) slideOpenChat()
+            if (closeSwipe && traveled < -threshold) finishPage()
+        }) { change, distance ->
+            change.consume()
+            traveled += distance
+        }
+    } else Modifier
     Scaffold(
+        modifier = swipeModifier,
         containerColor = Ink,
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             if (!fullscreen) Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 9.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 if (page.isNotEmpty()) IconButton(onClick = ::finishPage) { Icon(Icons.Outlined.ArrowBack, stringResource(R.string.volver)) }
-                else Box(Modifier.size(38.dp).background(Color(0xFF111A20), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
-                    Image(androidx.compose.ui.res.painterResource(R.drawable.ic_metalima_foreground), null, Modifier.fillMaxSize())
-                }
+                else Image(androidx.compose.ui.res.painterResource(R.drawable.metalima_brand), null,
+                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)))
                 Spacer(Modifier.width(10.dp))
-                Text("MetaLima Ai", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                if (homeSwipe) IconButton(onClick = ::slideOpenChat) { Icon(Icons.Outlined.Forum, stringResource(R.string.open_assistant_chat), tint = Lime) }
                 IconButton(onClick = { help = true }) { Icon(Icons.Outlined.HelpOutline, stringResource(R.string.ayuda), tint = Muted) }
             }
         },
@@ -531,7 +686,7 @@ import kotlinx.coroutines.withTimeoutOrNull
                 listOf(stringResource(R.string.inicio) to Icons.Outlined.Home, stringResource(R.string.historial) to Icons.Outlined.History,
                     stringResource(R.string.laboratorio) to Icons.Outlined.Science, stringResource(R.string.ajustes) to Icons.Outlined.Settings,
                     stringResource(R.string.donaciones) to Icons.Outlined.FavoriteBorder).forEachIndexed { index, item ->
-                    NavigationBarItem(selected = index == tab, onClick = { liveProviderToConfigure = null; tab = index }, icon = { Icon(item.second, null) },
+                    NavigationBarItem(selected = index == tab, onClick = { tab = index }, icon = { Icon(item.second, null) },
                         label = { Text(item.first, style = MaterialTheme.typography.labelSmall, maxLines = 2,
                             overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
                         colors = NavigationBarItemDefaults.colors(indicatorColor = Lime,
@@ -543,7 +698,7 @@ import kotlinx.coroutines.withTimeoutOrNull
         if (fullscreen && page == "cast") {
             Box(Modifier.fillMaxSize().background(Ink)) {
                 Viewfinder(capture.isStreaming, capture.hasStream, surface = camera::setSurface,
-                    modifier = Modifier.fillMaxSize(), hud = quickOverlay, reaction = reaction, filter = filter)
+                    modifier = Modifier.fillMaxSize(), hud = quickOverlay, reaction = reaction, filter = filter, fullBleed = true)
                 if (!live.active) IconButton(onClick = { fullscreen = false }, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding()) { Icon(Icons.Outlined.Close, stringResource(R.string.salir_de_pantalla_completa)) }
                 else TextButton(onClick = ::finishPage,
                     modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding()) { Text(if (live.recording) stringResource(R.string.detener_grabacion) else stringResource(R.string.detener_directo)) }
@@ -552,11 +707,11 @@ import kotlinx.coroutines.withTimeoutOrNull
             Box(Modifier.fillMaxSize().padding(padding)) {
                 val canSee = liveModel.supportsVisionTools && page == "conversation-live"
                 LiveConversationScreen(conversationState, liveModel, liveOnPhone,
-                    if (liveModel.provider == Provider.GEMINI) ai.hasGeminiKey else ai.hasOpenAiKey,
+                    liveModel.provider in ai.configuredProviders,
                     capture.isRecording || live.active || finishVoice != null || speaking || ai.busy || audioTesting,
                     select = { liveModel = it; prefs.liveModel = it.id },
                     choosePhone = { liveOnPhone = it },
-                    configure = { liveProviderToConfigure = liveModel.provider; page = ""; tab = 3 },
+                    configure = { configureAssistant(liveModel.provider) },
                     start = {
                         if (liveOnPhone || activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                             startLiveConversation()
@@ -592,14 +747,22 @@ import kotlinx.coroutines.withTimeoutOrNull
                     }) else null)
             }
         } else key(page, tab) {
-            Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 24.dp),
+            Column(Modifier.fillMaxSize().padding(padding)
+                .graphicsLayer { if (page == "ai" && sideChat) translationX = (chatSlide.value - 1f) * size.width }
+                .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when (page) {
-                    "diagnostics" -> DiagnosticsScreen(hardware, capture, conversationState, liveModel,
-                        activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED,
-                        activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED,
+                    "assistant-settings" -> {
+                        Heading(stringResource(R.string.inteligencia_artificial))
+                        AssistantSettings(activity, assistant, ::notify, providerToConfigure)
+                    }
+                    "diagnostics" -> DiagnosticsScreen(activity, hardware, capture, conversationState, liveModel,
                         audioResult, audioTesting, apiResult, apiTesting,
-                        ::runAudioTest, ::runApiTest, { go("camera") }, { glasses.openGlassesAppUpdate(activity) })
+                        { usePhone ->
+                            if (usePhone || activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                                runAudioTest(usePhone)
+                            } else diagnosisBluetooth.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        }, ::runApiTest, { go("camera") }, { glasses.openGlassesAppUpdate(activity) })
                     "vision-translate" -> {
                         Heading(stringResource(R.string.traducir_una_imagen), stringResource(R.string.elige_una_foto_de_la))
                         Choice(stringResource(R.string.traducir_a), imageLanguage, translationLanguages, display = { translationLabel(it) }) { imageLanguage = it }
@@ -637,6 +800,13 @@ import kotlinx.coroutines.withTimeoutOrNull
                     }
                     "ai" -> {
                         Heading(stringResource(R.string.conversacion), stringResource(R.string.pregunta_por_voz_por_escrito))
+                        AssistantChoice(ai.provider, ai, enabled = !ai.busy && !dictating && finishVoice == null && !speaking, onSelect = ::openAssistant)
+                        if (ai.provider == Provider.MUSE) {
+                            Block {
+                                Text(stringResource(R.string.muse_api_summary), color = Muted)
+                                OutlinedButton(onClick = { openMuseWebsite(activity, ::notify) }) { Text(stringResource(R.string.muse_open_web)) }
+                            }
+                        }
                         ActionTile(Icons.Outlined.Headphones, stringResource(R.string.conversacion_en_directo), liveModel.displayLabel()) { go("conversation-live") }
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             AssistChip(onClick = { go("gps") }, label = { Text("GPS") }, leadingIcon = { Icon(Icons.Outlined.LocationOn, null, Modifier.size(16.dp)) })
@@ -648,7 +818,8 @@ import kotlinx.coroutines.withTimeoutOrNull
                                     .onFailure { notify(activity.getString(R.string.no_se_pudo_abrir_el)) }
                             }, label = { Text("Web") }, leadingIcon = { Icon(Icons.Outlined.Language, null, Modifier.size(16.dp)) })
                         }
-                        if (!ai.hasKey) ActionTile(Icons.Outlined.Key, stringResource(R.string.configurar, ai.provider.label), stringResource(R.string.anade_una_clave_para_empezar)) { page = ""; tab = 3 }
+                        if (!ai.hasKey) ActionTile(Icons.Outlined.Key, stringResource(R.string.configurar, ai.provider.label),
+                            stringResource(R.string.anade_una_clave_para_empezar)) { configureAssistant(ai.provider) }
                         if (ai.provider == Provider.GEMINI && ai.hasKey) Block {
                             val recording = finishVoice
                             Button(
@@ -694,7 +865,7 @@ import kotlinx.coroutines.withTimeoutOrNull
                         OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.escribe_tu_pregunta)) }, maxLines = 5)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(enabled = canType, onClick = { photoPicker.launch("image/*") }) { Icon(Icons.Outlined.AttachFile, stringResource(R.string.adjuntar_imagen)) }
-                            IconButton(enabled = canType && !ai.busy, onClick = { dictating = true; runCatching { dictation.launch(dictationRequest(language)) }
+                            IconButton(enabled = canType && !ai.busy && !handsFree.ownsMicrophone, onClick = { dictating = true; runCatching { dictation.launch(dictationRequest(language)) }
                                 .onFailure { dictating = false; notify(activity.getString(R.string.android_no_dispone_de_un)) } }) { Icon(Icons.Outlined.Mic, activity.getString(R.string.dictar_pregunta)) }
                             Spacer(Modifier.weight(1f))
                             Button(onClick = { submit(draft, image); draft = ""; image = null }, enabled = canType && ai.hasKey && !ai.busy && draft.isNotBlank()) { Text(if (ai.busy) stringResource(R.string.enviando) else stringResource(R.string.enviar)) }
@@ -752,7 +923,9 @@ import kotlinx.coroutines.withTimeoutOrNull
                             } else {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(enabled = capture.isStreaming && !capture.isCapturingPhoto, onClick = camera::capturePhoto) { Text(stringResource(R.string.hacer_foto)) }
-                                    Button(enabled = capture.isStreaming || capture.isRecording, onClick = { camera.toggleRecording(activity::requestMicrophone) }) { Text(if (capture.isRecording) stringResource(R.string.detener_grabacion) else stringResource(R.string.grabar_video)) }
+                                    Button(enabled = capture.isStreaming || capture.isRecording, onClick = {
+                                        if (capture.isRecording || !capture.includeAudioInStream || needsFreeMicrophone()) camera.toggleRecording(activity::requestMicrophone)
+                                    }) { Text(if (capture.isRecording) stringResource(R.string.detener_grabacion) else stringResource(R.string.grabar_video)) }
                                 }
                                 if (capture.isRecording) Text(stringResource(R.string.grabando_s, capture.recordingElapsedSeconds), color = Lime)
                                 SwitchRow(stringResource(R.string.microfono_de_las_gafas), capture.includeAudioInStream, !capture.isRecording && capture.isStreaming) { camera.toggleMic() }
@@ -773,6 +946,11 @@ import kotlinx.coroutines.withTimeoutOrNull
                     }
                     "modes" -> {
                         Heading(stringResource(R.string.modo_de_grabacion), stringResource(R.string.elige_que_quieres_guardar_en))
+                        Block {
+                            VideoFormatControls(recordFormat, false, ::saveRecordFormat,
+                                voice = if (canArmVoice) ({ armVideoFormat(VideoTarget.RECORDING) }) else null,
+                                listening = videoVoiceTarget == VideoTarget.RECORDING)
+                        }
                         ActionTile(Icons.Outlined.Speed, stringResource(R.string.rendimiento), stringResource(R.string.video_directo_de_la_camara)) { go("camera") }
                         ActionTile(Icons.Outlined.AutoAwesome, stringResource(R.string.interactivo), stringResource(R.string.graba_el_visor_con_hud)) { go("cast") }
                     }
@@ -784,6 +962,9 @@ import kotlinx.coroutines.withTimeoutOrNull
                                 Text(platformLabel(prefs.platform), style = MaterialTheme.typography.titleLarge)
                             }
                             Text(if (prefs.secret(prefs.platform)) stringResource(R.string.clave_de_emision_guardada) else stringResource(R.string.falta_configurar_la_clave_de), color = Muted)
+                            if (!live.active) VideoFormatControls(streamFormat, true, ::saveStreamFormat,
+                                voice = if (canArmVoice) ({ armVideoFormat(VideoTarget.STREAM) }) else null,
+                                listening = videoVoiceTarget == VideoTarget.STREAM)
                             SwitchRow(stringResource(R.string.incluir_microfono_del_movil), audio, !live.active) { audio = it }
                             if (prefs.platform in listOf("TikTok", "Instagram Live"))
                                 Text(stringResource(R.string.el_directo_requiere_acceso_a), color = Muted)
@@ -810,9 +991,30 @@ import kotlinx.coroutines.withTimeoutOrNull
                     }
                     else -> when (tab) {
                         0 -> {
-                            GlassesDashboard(hardware, capture, diagnose = { go("diagnostics") }, connect = activity::connectGlasses)
+                            GlassesDashboard(hardware, capture, prefs, diagnose = { go("diagnostics") }, connect = activity::connectGlasses)
+                            AssistantHub(ai, openChat = { openAssistant(Provider.OPENAI) },
+                                openGemini = {
+                                    if (liveModel.provider != Provider.GEMINI) {
+                                        liveModel = LiveModel.GEMINI_38
+                                        prefs.liveModel = liveModel.id
+                                    }
+                                    go("conversation-live")
+                                }, openMuse = { openAssistant(Provider.MUSE) })
                             LiveLaunchCard(liveModel.displayLabel()) { go("conversation-live") }
                             Section(stringResource(R.string.asistente))
+                            Block {
+                                SwitchRow(stringResource(R.string.handsfree_title), handsFree.enabled,
+                                    enabled = handsFree.enabled || (canArmVoice && !voiceCommandPending)) { toggleHandsFree() }
+                                Text(stringResource(handsFree.message ?: R.string.handsfree_summary), color = Muted)
+                                handsFree.heard?.let { Text(stringResource(R.string.handsfree_last_heard, it), color = Muted) }
+                                if (ai.provider == Provider.GEMINI) {
+                                    SwitchRow(stringResource(R.string.handsfree_gemini_audio), handsFreeGeminiAudio) {
+                                        prefs.handsFreeGeminiAudio = it
+                                        handsFreeGeminiAudio = it
+                                    }
+                                    Text(stringResource(R.string.handsfree_gemini_audio_summary), color = Muted)
+                                }
+                            }
                             OutlinedButton(onClick = { armVoiceCommand(mark = false) }, enabled = canArmVoice && !voiceCommandPending) {
                                 Icon(Icons.Outlined.Mic, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -839,8 +1041,8 @@ import kotlinx.coroutines.withTimeoutOrNull
                         }
                         3 -> StudioSettings(activity, glasses, assistant, prefs, responseSpoken, { responseSpoken = it; prefs.speak = it },
                             language, { language = it; prefs.language = it }, wakePhrase,
-                            { wakePhrase = it; prefs.setWakePhrase(language, it) }, ::notify, liveProviderToConfigure,
-                            skin, { skin = it; prefs.skin = it })
+                            { wakePhrase = it; prefs.setWakePhrase(language, it) }, ::notify,
+                            skin, { skin = it; prefs.skin = it }, streamFormat, ::saveStreamFormat)
                         4 -> Donations(activity, ::notify)
                     }
                 }
@@ -854,6 +1056,7 @@ import kotlinx.coroutines.withTimeoutOrNull
             confirmButton = { TextButton(onClick = { shareUri(activity, uri, "video/mp4"); BroadcastService.dismissSaved() }) { Text(stringResource(R.string.compartir)) } },
             dismissButton = { TextButton(onClick = BroadcastService::dismissSaved) { Text(stringResource(R.string.cerrar)) } })
     }
+    UpdatePrompt(activity)
     if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text(stringResource(R.string.ayuda_y_conexion)) }, text = {
         Text(stringResource(R.string.vincula_primero_las_gafas_en))
     }, confirmButton = { TextButton(onClick = { help = false }) { Text(stringResource(R.string.entendido)) } })
@@ -872,6 +1075,8 @@ import kotlinx.coroutines.withTimeoutOrNull
                         setVideoURI(file.uri); setMediaController(android.widget.MediaController(context).also { it.setAnchorView(this) }); seekTo(1)
                     } }, modifier = Modifier.fillMaxWidth().height(220.dp))
                 }
+                if (file is CapturePreview.Video && saved == null && !writing) VideoFormatControls(recordFormat, false, ::saveRecordFormat)
+                if (file is CapturePreview.Video && writing) Text(stringResource(R.string.video_exporting), color = Muted)
                 if (file is CapturePreview.Video && file.marks.isNotEmpty()) {
                     Text(stringResource(R.string.momentos_marcados), style = MaterialTheme.typography.titleMedium)
                     file.marks.forEachIndexed { index, time ->
@@ -879,7 +1084,7 @@ import kotlinx.coroutines.withTimeoutOrNull
                             scope.launch {
                                 writing = true
                                 try {
-                                    withContext(Dispatchers.IO) { exportMarkedClip(activity, file.uri, time) }
+                                    withContext(Dispatchers.IO) { exportMarkedClip(activity, file.uri, time, recordFormat) }
                                     notify(activity.getString(R.string.fragmento_guardado_en_la_galeria, index + 1))
                                 } catch (error: CancellationException) { throw error }
                                 catch (error: Exception) { notify(error.message ?: activity.getString(R.string.no_se_pudo_exportar_el_2)) }
@@ -896,9 +1101,14 @@ import kotlinx.coroutines.withTimeoutOrNull
                 if (destination != null) shareUri(activity, destination, if (file is CapturePreview.Photo) "image/jpeg" else "video/mp4")
                 else scope.launch {
                     writing = true
-                    val result = withContext(Dispatchers.IO) { runCatching { storeCapture(activity, (file as? CapturePreview.Photo)?.bitmap, (file as? CapturePreview.Video)?.uri) } }
-                    writing = false
-                    result.onSuccess { saved = it }.onFailure { notify(activity.getString(R.string.no_se_pudo_guardar_la)) }
+                    try {
+                        saved = when (file) {
+                            is CapturePreview.Video -> saveRecording(activity, file.uri, recordFormat)
+                            is CapturePreview.Photo -> withContext(Dispatchers.IO) { storeCapture(activity, file.bitmap, null) }
+                        }
+                    } catch (error: CancellationException) { throw error }
+                    catch (_: Exception) { notify(activity.getString(R.string.no_se_pudo_guardar_la)) }
+                    finally { writing = false }
                 }
             }) { Text(if (saved == null) stringResource(R.string.guardar) else stringResource(R.string.compartir)) }
         }, dismissButton = {
@@ -926,12 +1136,13 @@ private val viewfinderReactions = linkedMapOf(
 )
 
 @Composable private fun Viewfinder(streaming: Boolean, hasStream: Boolean, surface: (Surface?) -> Unit, modifier: Modifier, hud: Boolean, reaction: String, filter: String,
-    onFrame: (TextureView?) -> Unit = {}, creatorGuide: Boolean = false) {
+    onFrame: (TextureView?) -> Unit = {}, creatorGuide: Boolean = false, fullBleed: Boolean = false) {
     val latestFrame by rememberUpdatedState(onFrame)
     val latestSurface by rememberUpdatedState(surface)
     var received by remember { mutableStateOf(false) }
     LaunchedEffect(hasStream) { if (!hasStream) received = false }
-    Box(modifier.clip(Panel).background(Color(0xFF07090B)).border(1.dp, Line, Panel), contentAlignment = Alignment.Center) {
+    val frame = if (fullBleed) modifier else modifier.clip(Panel).border(1.dp, Line, Panel)
+    Box(frame.background(Color(0xFF07090B)), contentAlignment = Alignment.Center) {
         AndroidView(factory = { context -> TextureView(context).apply {
             surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                 private var output: Surface? = null

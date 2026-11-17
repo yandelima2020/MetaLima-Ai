@@ -24,7 +24,7 @@ internal fun dictationRequest(language: AppLanguage) = Intent(RecognizerIntent.A
 
 /** An explicitly armed command owns at most one recognition request. */
 @Composable internal fun VoiceCommand(
-    context: Context, enabled: Boolean, phrase: String, language: AppLanguage,
+    context: Context, enabled: Boolean, phrase: String?, language: AppLanguage,
     finished: (question: String?, message: String?) -> Unit
 ) {
     val owner = LocalLifecycleOwner.current
@@ -74,8 +74,10 @@ internal fun dictationRequest(language: AppLanguage) = Intent(RecognizerIntent.A
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
             override fun onResults(results: Bundle?) {
                 val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                val question = commandQuestion(heard, phrase, language == AppLanguage.CHINESE)
-                finish(question, if (question == null) context.getString(R.string.no_se_reconocio_pulsa_para, phrase) else null)
+                val question = if (phrase == null) heard.takeIf { it.isNotBlank() } else commandQuestion(heard, phrase, language == AppLanguage.CHINESE)
+                val noMatch = if (phrase == null) context.getString(R.string.video_format_not_recognized)
+                    else context.getString(R.string.no_se_reconocio_pulsa_para, phrase)
+                finish(question, if (question == null) noMatch else null)
             }
             override fun onError(error: Int) {
                 val message = when (error) {
@@ -83,7 +85,8 @@ internal fun dictationRequest(language: AppLanguage) = Intent(RecognizerIntent.A
                     SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED,
                     SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> context.getString(R.string.comprueba_si_android_ofrece_reconocimiento, language.label)
                     SpeechRecognizer.ERROR_NO_MATCH,
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.no_se_reconocio_pulsa_para, phrase)
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> if (phrase == null) context.getString(R.string.video_format_not_recognized)
+                        else context.getString(R.string.no_se_reconocio_pulsa_para, phrase)
                     else -> context.getString(R.string.el_reconocimiento_de_voz_se)
                 }
                 finish(message = message)
@@ -101,8 +104,12 @@ internal fun dictationRequest(language: AppLanguage) = Intent(RecognizerIntent.A
 
 private val word = Regex("[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M}]*")
 private val accents = Regex("\\p{M}+")
+private val limaPrefix = Regex("""^\s*(?:ok|okay|okey|oquei|o\s+que|ocay|hockey)\s+lima(?=\P{L}|$)[\p{P}\p{Z}]*""", RegexOption.IGNORE_CASE)
+
+internal fun limaQuestion(heard: String): String? = limaPrefix.find(heard)?.let { heard.substring(it.range.last + 1).trim() }
 
 private fun commandQuestion(heard: String, phrase: String, unspaced: Boolean): String? {
+    if (phrase == "OK Lima") return limaQuestion(heard)
     val tokens = word.findAll(heard).toList()
     val expected = word.findAll(phrase).map { it.value }.toList()
     if (unspaced) {

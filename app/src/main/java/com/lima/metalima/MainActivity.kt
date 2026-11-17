@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
 
     private val glasses: WearablesViewModel by viewModels()
     private val camera: CameraViewModel by viewModels { CameraViewModel.Factory(application, glasses) }
-    private val assistant: AssistantViewModel by viewModels()
+    private val assistant by lazy { AssistantViewModel.shared(application) }
     private val conversation: LiveConversationViewModel by viewModels()
     private val permissionMutex = Mutex()
     private var cameraPrompt: CancellableContinuation<PermissionStatus>? = null

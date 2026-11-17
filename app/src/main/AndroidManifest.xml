@@ -79,6 +79,7 @@
         </provider>
 
         <service android:name=".BroadcastService" android:exported="false" android:foregroundServiceType="mediaProjection|microphone" />
+        <service android:name=".HandsFreeService" android:exported="false" android:foregroundServiceType="microphone" />
         <!-- Foreground service that keeps streaming/recording alive in the background -->
         <service
             android:name=".stream.StreamingService"

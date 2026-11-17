@@ -34,6 +34,7 @@ data class CameraUiState(
     // boolean (not a per-frame counter) keeps the screen from recomposing at the frame rate — the
     // SurfaceView renders frames independently of Compose.
     val hasReceivedFirstFrame: Boolean = false,
+    val videoAspect: Float = 0f,
     val adaptiveLabel: String? = null,
     // Capture / recording intent.
     val isCapturingPhoto: Boolean = false,

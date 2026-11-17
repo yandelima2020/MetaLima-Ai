@@ -12,7 +12,7 @@ import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.nio.ByteBuffer
 
-internal suspend fun exportMarkedClip(context: Context, source: Uri, markMs: Long): Uri {
+internal suspend fun exportMarkedClip(context: Context, source: Uri, markMs: Long, format: VideoFormat): Uri {
     val extractor = MediaExtractor()
     val temporary = File.createTempFile("fragmento-", ".mp4", File(context.cacheDir, "recordings").apply { mkdirs() })
     try {
@@ -70,7 +70,7 @@ internal suspend fun exportMarkedClip(context: Context, source: Uri, markMs: Lon
             muxer.release()
         }
         val tempUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", temporary)
-        return storeCapture(context, null, tempUri)
+        return saveRecording(context, tempUri, format)
     } finally {
         extractor.release()
         temporary.delete()

@@ -3,6 +3,7 @@ package com.lima.metalima
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -13,6 +14,7 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
+import com.meta.wearable.dat.core.types.DeviceIdentifier
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -25,6 +27,11 @@ internal class StudioPrefs(context: Context) {
     var skin: Skin
         get() = Skin.entries.firstOrNull { it.name == prefs.getString("skin", null) } ?: Skin.GRAPHITE
         set(value) { prefs.edit().putString("skin", value.name).apply() }
+    fun framePhoto(deviceId: DeviceIdentifier): String? = prefs.getString("frame-photo-${deviceId.identifier}", null)
+
+    fun setFramePhoto(deviceId: DeviceIdentifier, photo: String?) {
+        prefs.edit().putString("frame-photo-${deviceId.identifier}", photo).apply()
+    }
     var platform: String
         get() = prefs.getString("platform", destinations.first()) ?: destinations.first()
         set(value) { prefs.edit().putString("platform", value).apply() }
@@ -58,9 +65,32 @@ internal class StudioPrefs(context: Context) {
     var landscape: Boolean
         get() = prefs.getBoolean("landscape", false)
         set(value) { prefs.edit().putBoolean("landscape", value).apply() }
+    var streamFormat: VideoFormat
+        get() = VideoFormat(if (landscape) VideoOrientation.HORIZONTAL else VideoOrientation.VERTICAL,
+            VideoFraming.entries.firstOrNull { it.name == prefs.getString("stream-framing", null) } ?: VideoFraming.ORIGINAL)
+        set(value) {
+            prefs.edit().putBoolean("landscape", value.orientation == VideoOrientation.HORIZONTAL)
+                .putString("stream-framing", value.framing.name).apply()
+        }
+    var recordFormat: VideoFormat
+        get() = VideoFormat(VideoOrientation.entries.firstOrNull { it.name == prefs.getString("record-orientation", null) }
+            ?: VideoOrientation.ORIGINAL, VideoFraming.entries.firstOrNull { it.name == prefs.getString("record-framing", null) }
+            ?: VideoFraming.BLUR)
+        set(value) {
+            prefs.edit().putString("record-orientation", value.orientation.name).putString("record-framing", value.framing.name).apply()
+        }
+    fun observeVideoFormats(onChange: () -> Unit): AutoCloseable {
+        val changes = setOf("record-orientation", "record-framing", "landscape", "stream-framing")
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, name -> if (name in changes) onChange() }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        return AutoCloseable { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var speak: Boolean
         get() = prefs.getBoolean("speak", true)
         set(value) { prefs.edit().putBoolean("speak", value).apply() }
+    var handsFreeGeminiAudio: Boolean
+        get() = prefs.getBoolean("hands-free-gemini-audio", false)
+        set(value) { prefs.edit().putBoolean("hands-free-gemini-audio", value).apply() }
     var language: AppLanguage
         get() = AppLanguage.entries.firstOrNull { it.tag == prefs.getString("language", null) } ?: AppLanguage.SPANISH
         set(value) { prefs.edit().putString("language", value.tag).apply() }

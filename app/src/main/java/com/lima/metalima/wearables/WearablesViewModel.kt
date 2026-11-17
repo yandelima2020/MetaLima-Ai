@@ -57,7 +57,7 @@ class WearablesViewModel(private val application: Application) : AndroidViewMode
     // Monitor device selector for active device
     deviceSelectorJob = viewModelScope.launch {
       deviceSelector.activeDeviceFlow().collect { device ->
-        _uiState.update { it.copy(hasActiveDevice = device != null) }
+        _uiState.update { it.copy(activeDeviceId = device) }
       }
     }
 

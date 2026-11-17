@@ -462,8 +462,11 @@ class CameraViewModel(
       )
     }
 
-    if (!videoFrame.isCodecConfig && !_uiState.value.hasReceivedFirstFrame) {
-      _uiState.update { it.copy(hasReceivedFirstFrame = true) }
+    if (!videoFrame.isCodecConfig && width > 0 && height > 0) {
+      val aspect = width.toFloat() / height
+      if (!_uiState.value.hasReceivedFirstFrame || _uiState.value.videoAspect != aspect) {
+        _uiState.update { it.copy(hasReceivedFirstFrame = true, videoAspect = aspect) }
+      }
     }
   }
 
@@ -503,7 +506,7 @@ class CameraViewModel(
     stopCamera(camera)
     camera = null
     stream = null
-    _uiState.update { it.copy(streamState = StreamState.STOPPED, hasReceivedFirstFrame = false, adaptiveLabel = null) }
+    _uiState.update { it.copy(streamState = StreamState.STOPPED, hasReceivedFirstFrame = false, videoAspect = 0f, adaptiveLabel = null) }
   }
 
   /**

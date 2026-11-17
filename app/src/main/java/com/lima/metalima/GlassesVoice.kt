@@ -64,7 +64,7 @@ internal class GlassesVoice(private val context: Context) {
         check(pcm.size >= AudioInputHandler.SAMPLE_RATE / 2) {
             context.interfaceString(R.string.la_grabacion_es_muy_corta)
         }
-        return pcmToWav(pcm)
+        return pcmToWav(pcm, AudioInputHandler.SAMPLE_RATE)
     }
 
     private fun AudioInputHandler.startCapture(first: CompletableDeferred<Unit>, samples: ByteArrayOutputStream, maxBytes: Int): Boolean {
@@ -147,8 +147,7 @@ internal fun selectGlassesDevice(context: Context, manager: AudioManager, names:
             else context.interfaceString(R.string.hay_varias_salidas_bluetooth_desconecta))
 }
 
-private fun pcmToWav(pcm: ByteArray): ByteArray {
-    val rate = AudioInputHandler.SAMPLE_RATE
+internal fun pcmToWav(pcm: ByteArray, rate: Int): ByteArray {
     return ByteBuffer.allocate(44 + pcm.size).order(ByteOrder.LITTLE_ENDIAN)
         .put("RIFF".toByteArray(Charsets.US_ASCII)).putInt(36 + pcm.size)
         .put("WAVEfmt ".toByteArray(Charsets.US_ASCII)).putInt(16)

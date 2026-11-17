@@ -11,7 +11,7 @@ import androidx.compose.material.icons.outlined.BatteryStd
 import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,18 +19,35 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lima.metalima.camera.CameraUiState
 import com.lima.metalima.wearables.WearablesUiState
+import com.meta.wearable.dat.core.types.DeviceType
+import com.meta.wearable.dat.core.types.LinkState
 
 @Composable internal fun GlassesDashboard(
-    hardware: WearablesUiState, capture: CameraUiState, diagnose: () -> Unit, connect: () -> Unit
+    hardware: WearablesUiState, capture: CameraUiState, prefs: StudioPrefs, diagnose: () -> Unit, connect: () -> Unit
 ) {
-    val device = hardware.deviceDetails.values.firstOrNull { it.linkState.name == "CONNECTED" }
-    val name = device?.name?.takeIf { it.isNotBlank() } ?: "Ray-Ban Meta"
-    val battery = device?.batteryLevel?.takeIf { it in 0..100 }
+    val activeDevice = hardware.deviceDetails.entries.firstOrNull { it.key == hardware.activeDeviceId }
+    val shownDevice = activeDevice ?: hardware.deviceDetails.entries.singleOrNull()
+    val device = shownDevice?.value
+    val family = when (device?.deviceType) {
+        DeviceType.OAKLEY_META_HSTN -> "Oakley Meta HSTN"
+        DeviceType.OAKLEY_META_VANGUARD -> "Oakley Meta Vanguard"
+        DeviceType.META_RAYBAN_DISPLAY -> "Meta Ray-Ban Display"
+        else -> "Ray-Ban Meta"
+    }
+    val name = device?.name?.takeIf { it.isNotBlank() } ?: family
+    val battery = device?.takeIf { it.linkState == LinkState.CONNECTED }?.batteryLevel?.takeIf { it in 0..100 }
+    val deviceId = shownDevice?.key
+    val context = LocalContext.current
+    val catalog = remember(context) { frameCatalog(context) }
+    var photoId by remember(prefs, deviceId) { mutableStateOf(deviceId?.let(prefs::framePhoto)) }
+    val selected = catalog.firstOrNull { it.id == photoId }
+    var frameMenuOpen by remember(deviceId) { mutableStateOf(false) }
     val connected = hardware.hasActiveDevice
     val status = when {
         connected -> stringResource(R.string.conectadas)
@@ -51,12 +68,22 @@ import com.lima.metalima.wearables.WearablesUiState
             }
         }
         Text(name, style = MaterialTheme.typography.headlineMedium, maxLines = 2)
-        BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1.94f)) {
-            Image(painterResource(R.drawable.rayban_meta_wayfarer), stringResource(R.string.ray_ban_meta_wayfarer_con),
-                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
-            if (capture.isRecording || capture.isCapturingPhoto) {
-                Box(Modifier.offset(maxWidth * .915f - 7.dp, maxHeight * .395f - 7.dp).size(14.dp)
-                    .background(Brush.radialGradient(listOf(Color.White.copy(alpha = .83f), Color.Transparent)), CircleShape))
+        Box(Modifier.fillMaxWidth().aspectRatio(1.94f).clip(Panel)) {
+            if (selected != null) {
+                Image(painterResource(selected.photo), "${selected.model} · ${selected.frame}",
+                    modifier = Modifier.fillMaxSize().background(Color(0xFFF7F7F7)), contentScale = ContentScale.Fit)
+            } else {
+                DeviceArt(Modifier.fillMaxSize(), Muted)
+            }
+        }
+        if (deviceId != null) {
+            TextButton(onClick = { frameMenuOpen = true }) {
+                Text(if (selected == null) stringResource(R.string.frame_catalog) else "${selected.model} · ${selected.frame}")
+            }
+            if (frameMenuOpen) FrameCatalogDialog(catalog, selected, name, close = { frameMenuOpen = false }) { variant ->
+                prefs.setFramePhoto(deviceId, variant?.id)
+                photoId = variant?.id
+                frameMenuOpen = false
             }
         }
         HorizontalDivider(color = Line)

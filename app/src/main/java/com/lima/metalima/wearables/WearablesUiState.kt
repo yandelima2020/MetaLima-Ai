@@ -30,9 +30,11 @@ data class WearablesUiState(
     val recentError: RecentError? = null,
     val isDebugMenuVisible: Boolean = false,
     val isFirmwareUpdateRequired: Boolean = false,
-    val hasActiveDevice: Boolean = false,
+    val activeDeviceId: DeviceIdentifier? = null,
     val canRegister: Boolean = false,
 ) {
+  val hasActiveDevice: Boolean get() = activeDeviceId != null
+
   val isRegistered: Boolean =
       registrationState == RegistrationState.REGISTERED ||
           registrationState == RegistrationState.UNREGISTERING

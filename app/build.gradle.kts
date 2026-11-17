@@ -19,8 +19,8 @@ android {
         applicationId = "com.lima.metalima"
         minSdk = 31
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.4.0"
+        versionCode = 8
+        versionName = "0.5.0"
         manifestPlaceholders["mwdat_application_id"] = local.getProperty("mwdat_application_id", "0")
         manifestPlaceholders["mwdat_client_token"] = local.getProperty("mwdat_client_token", "0")
     }
@@ -42,6 +42,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("androidx.exifinterface:exifinterface:1.4.2")
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("com.alphacephei:vosk-android:0.3.75@aar")
+    implementation("net.java.dev.jna:jna:5.18.1@aar")
     implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
     implementation("com.meta.wearable:mwdat-core:1.0.1")
