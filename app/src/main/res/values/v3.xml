@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="update_now">Actualizar a %1$s</string>
+    <string name="update_downloading">Descargando el APK…</string>
+    <string name="update_verifying">Verificando el APK…</string>
+    <string name="update_install">Instalar actualización</string>
+    <string name="update_checking">Comprobando actualizaciones…</string>
+    <string name="update_failed">No se pudo preparar la actualización. Vuelve a intentarlo.</string>
+    <string name="update_check">Comprobar actualizaciones</string>
     <string name="handsfree_gemini_audio">Audio directo con Gemini</string>
     <string name="handsfree_gemini_audio_summary">Espera al tono y habla a ritmo normal. Si lo activas, Gemini recibe el audio de tu pregunta para transcribirla y responder.</string>
     <string name="handsfree_last_heard">Última pregunta reconocida: «%1$s»</string>

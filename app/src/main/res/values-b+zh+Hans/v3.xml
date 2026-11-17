@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="update_now">更新到 %1$s</string>
+    <string name="update_downloading">正在下载 APK…</string>
+    <string name="update_verifying">正在验证 APK…</string>
+    <string name="update_install">安装更新</string>
+    <string name="update_checking">正在检查更新…</string>
+    <string name="update_failed">无法准备更新。请重试。</string>
+    <string name="update_check">检查更新</string>
     <string name="handsfree_gemini_audio">向 Gemini 发送音频</string>
     <string name="handsfree_gemini_audio_summary">听到提示音后正常说话。启用后，Gemini 会接收问题的音频并转写和回答。</string>
     <string name="handsfree_last_heard">上次识别到的问题：“%1$s”</string>

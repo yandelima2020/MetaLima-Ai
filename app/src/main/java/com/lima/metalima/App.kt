@@ -90,6 +90,7 @@ import kotlinx.coroutines.withTimeoutOrNull
     val hardware by glasses.uiState.collectAsStateWithLifecycle()
     val capture by camera.uiState.collectAsStateWithLifecycle()
     val ai by assistant.state.collectAsStateWithLifecycle()
+    val (updates, updateAction) = rememberAppUpdates(activity)
     val handsFree by HandsFreeService.state.collectAsStateWithLifecycle()
     var handsFreeGeminiAudio by remember { mutableStateOf(prefs.handsFreeGeminiAudio) }
     val live by BroadcastService.state.collectAsStateWithLifecycle()
@@ -1036,6 +1037,7 @@ import kotlinx.coroutines.withTimeoutOrNull
                         1 -> History(ai.turns, assistant::clearHistory, assistant::deleteSessions, { assistant.selectSession(it); draft = ""; image = null; go("ai") }, ::notify)
                         2 -> {
                             Heading(stringResource(R.string.laboratorio))
+                            Block { UpdateControls(updates, updateAction) }
                             ActionTile(Icons.Outlined.LocationOn, stringResource(R.string.ubicacion_y_rutas), stringResource(R.string.localiza_el_movil_y_abre)) { go("gps") }
                             ActionTile(Icons.Outlined.Cast, stringResource(R.string.hud_y_reacciones), stringResource(R.string.superposiciones_para_el_visor_compartido)) { go("cast") }
                         }
@@ -1056,7 +1058,11 @@ import kotlinx.coroutines.withTimeoutOrNull
             confirmButton = { TextButton(onClick = { shareUri(activity, uri, "video/mp4"); BroadcastService.dismissSaved() }) { Text(stringResource(R.string.compartir)) } },
             dismissButton = { TextButton(onClick = BroadcastService::dismissSaved) { Text(stringResource(R.string.cerrar)) } })
     }
-    UpdatePrompt(activity)
+    UpdatePrompt(updates) {
+        tab = 2
+        page = ""
+        updateAction()
+    }
     if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text(stringResource(R.string.ayuda_y_conexion)) }, text = {
         Text(stringResource(R.string.vincula_primero_las_gafas_en))
     }, confirmButton = { TextButton(onClick = { help = false }) { Text(stringResource(R.string.entendido)) } })

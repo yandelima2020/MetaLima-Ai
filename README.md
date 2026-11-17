@@ -1,4 +1,4 @@
-# MetaLima AI V3 Pro · 0.5.0
+# MetaLima AI V3 Pro · 0.5.1
 
 MetaLima AI V3 Pro reúne conversación por IA, traducción, notas, grabación y emisión en directo en Android. Puede utilizar la cámara de unas Ray-Ban Meta compatibles con Meta Wearables Device Access Toolkit (DAT) o trabajar con imágenes de la galería del móvil. Es una aplicación independiente.
 
@@ -18,11 +18,11 @@ MetaLima AI V3 Pro reúne conversación por IA, traducción, notas, grabación y
 
 ## Instalar la versión de prueba
 
-1. Descarga `MetaLima-Ai-0.5.0.apk` desde [la versión 0.5.0 en GitHub](https://github.com/yandelima2020/MetaLima-Ai/releases/tag/v0.5.0) y ábrelo en un teléfono con **Android 12 o posterior**. Si Android lo solicita, permite la instalación desde la aplicación con la que abriste el archivo.
+1. Descarga `MetaLima-Ai-0.5.1.apk` desde [la versión 0.5.1 en GitHub](https://github.com/yandelima2020/MetaLima-Ai/releases/tag/v0.5.1) y ábrelo en un teléfono con **Android 12 o posterior**. Si Android lo solicita, permite la instalación desde la aplicación con la que abriste el archivo.
 2. Si ya tienes la compilación de prueba 0.4.0 con la misma firma, instala el APK encima para conservar historial, notas, claves y ajustes.
 3. Para usar la cámara de las gafas, empareja las Ray-Ban Meta en **Meta AI**, activa el modo desarrollador de la integración y pulsa **Vincular** en MetaLima Ai. Acepta los permisos de Android y Meta que correspondan. Si el diagnóstico solicita actualizar el firmware o revisar **Conexiones de aplicaciones**, completa el paso en Meta AI y vuelve al visor.
 4. En **Ajustes → Inteligencia artificial**, elige un proveedor, configura un modelo compatible y guarda tu clave API. Puedes usar **Probar conexión** para verificar la configuración. Alibaba Qwen también usa una región y un espacio de trabajo. Las funciones de las gafas, la lectura local y el almacenamiento de notas tienen requisitos independientes de la clave de IA.
-5. Cuando GitHub publique un APK más reciente, MetaLima podrá avisarte al abrir. La comprobación usa las versiones públicas del repositorio y se limita a una consulta correcta cada 12 horas. **Descargar APK** abre el archivo oficial en el navegador. Android confirma la instalación. También puedes abrir el listado desde **Ajustes → Acerca de → Ver versiones en GitHub**.
+5. Cuando GitHub publique un APK más reciente, MetaLima te avisa al abrir. Pulsa **Descargar APK** en el aviso o **Actualizar** en Laboratorio. La descarga se realiza dentro de MetaLima. Android te pedirá confirmar la instalación.
 
 ## Color de las monturas
 
@@ -81,6 +81,12 @@ El botón **Donar con PayPal** abre la página de PayPal para la cuenta configur
 - Por OK Lima, la consulta empieza al sonar el tono. Se pide una respuesta breve y, si el proveedor tarda más de unos 11 segundos, la consulta se cancela, se anuncia el aviso y se vuelve a escuchar. Para instalaciones nuevas, Gemini usa Flash-Lite de forma predeterminada. El modelo guardado se conserva al actualizar.
 - En **Inicio → OK Lima por Bluetooth**, se muestra la última pregunta reconocida. Con audio directo, se muestra la transcripción de Gemini cuando llega su respuesta.
 - Para confirmar el sonido que oyes, comprobar la cámara y la latencia de las Ray-Ban Meta y probar la publicación RTMP, se necesitan las gafas, el móvil y las cuentas que se usarán. Para verificar el destinatario en PayPal, abre el botón y comprueba lo que muestra la página antes de confirmar.
+
+## Actualizaciones desde la aplicación
+
+Al abrir MetaLima aparece un aviso si GitHub publica un APK más reciente. En **Laboratorio**, también se destaca el botón **Actualizar**. La app descarga el APK, verifica que corresponda a MetaLima y comprueba su firma. Android pide confirmar la instalación y, la primera vez, puede pedir permiso para que MetaLima instale actualizaciones.
+
+En el emulador se comprobó el aviso con una publicación real de GitHub, la descarga desde Laboratorio, el permiso de instalación y el cambio de versión confirmado por Android.
 
 ## Pruebas de la 0.5.0
 
